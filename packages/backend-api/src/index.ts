@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import pool from './db';
+import pool from './db.js';
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -9,18 +9,15 @@ app.get('/health' , (req,res) => {
     res.json({ status: 'ok'});
 });
 
-app.post('/api/feedback',async (req,res) => {
-    const {teacher_id, issue,cluster} = req.body;
-    try{
-        const result = await pool.query(
-            'INSERT INTO feedback (teacher_id, issue, cluster) VALUES ($1, $2, $3) RETURNING *',
-            [teacher_id,issue,cluster]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: String(err)});
-    }
-});
+app.post('/api/feedback', (req, res) => {
+    console.log('✅ FEEDBACK ROUTE HIT!');
+    console.log('Data:', req.body);
+    res.status(200).json({ success: true, message: 'Feedback received' });
+  });
 
-const PORT = process.env.PORT;
-app.listen(PORT,() => console.log('Backend running on ${PORT}'));
+const PORT = parseInt(process.env.PORT || '3000', 10);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Backend running on port ${PORT}`);
+    console.log(`Local: http://localhost:${PORT}`);
+    console.log(`Network: http://0.0.0.0:${PORT}`);
+});
