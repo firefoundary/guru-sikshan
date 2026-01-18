@@ -8,7 +8,7 @@ const Sidebar = () => {
     padding: "10px 20px",
     margin: "5px 0",
     textDecoration: "none",
-    color: isActive ? "#fff" : "#333",
+    color: isActive ? "#302f2f" : "#333",
     backgroundColor: isActive ? "#007bff" : "transparent",
     borderRadius: "5px",
   });
@@ -19,11 +19,11 @@ const Sidebar = () => {
       style={{
         width: "200px",
         height: "100vh",
-        background: "#f5f5f5",
+        background: "#e66b2e",
         padding: "20px",
       }}
     >
-      <h2>Guru Sikshan</h2>
+      <h2 color="black">Guru Sikshan</h2>
       <NavLink to="/dashboard" style={linkStyles}>
         Dashboard
       </NavLink>

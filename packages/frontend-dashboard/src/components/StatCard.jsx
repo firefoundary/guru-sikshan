@@ -8,7 +8,7 @@ export default function StatCard({ title, value, icon, accent = "#3b82f6" }) {
         padding: "20px",
         borderRadius: "14px",
         color: "white",
-        boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
+        boxShadow: "0 10px 25px rgba(79, 72, 72, 0.35)",
         borderLeft: `4px solid ${accent}`,
         transition: "transform 0.2s ease, box-shadow 0.2s ease",
       }}
