@@ -19,7 +19,7 @@ export default function Dashboard() {
             marginTop: "24px",
           }}
         >
-          <StatCard title="Students" value="1,245" />
+          <StatCard title="clusters" value="1,245" />
           <StatCard title="Teachers" value="84" />
           <StatCard title="Courses" value="32" />
         </div>
