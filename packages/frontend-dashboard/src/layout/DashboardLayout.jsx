@@ -1,16 +1,20 @@
+// src/layout/DashboardLayout.jsx
+import React from "react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import React from "react";
 
-export default function DashboardLayout({ children }) {
+const DashboardLayout = ({ children }) => {
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#121212" }}>
+    <div style={{ display: "flex", height: "100vh", backgroundColor: "#f0f2f5" }}>
       <Sidebar />
-
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
         <Topbar />
-        <main style={{ flex: 1 }}>{children}</main>
+        <main style={{ padding: "30px" }}>
+          {children}
+        </main>
       </div>
     </div>
   );
-}
+};
+
+export default DashboardLayout;
