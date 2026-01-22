@@ -4,17 +4,17 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  
+  envDir: './', // Or './' if the .env is in the same folder as this config
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    // Fixes the "Missing React" crash
     dedupe: ['react', 'react-dom'],
   },
-  // ⬇️ FORCE PORT 8080
   server: {
     port: 8080,
-    host: true, // Allows access from network/mobile if needed
+    host: true,
   },
   optimizeDeps: {
     include: ['react', 'react-dom'],
