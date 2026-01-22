@@ -6,4 +6,4 @@ Guru Sikshan revolutionizes teacher professional development by using AI to crea
 * __Mobile-First__ : React Native app with offline access for rural teachers
 * __Multi-Role Dashboards__ : Teacher app , principal views , DIET admin analytics
 * __Continuous Feedback Loop__ : Used to collect , analyze and improve cycle
-* __Scalable Architectur__ : Microservices with Docker, PostgreSQL
+* __Scalable Architectur__ : Microservices with PostgreSQL
