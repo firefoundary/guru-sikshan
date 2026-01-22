@@ -106,7 +106,7 @@ def feedback_to_training():
         # 5. Generate personalized training
         print("Generating personalized content with AI...")
         try:
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             prompt = f"""
             You are an expert teacher trainer.
             Teacher: {teacher.get('name')} 
