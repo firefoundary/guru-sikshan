@@ -1,83 +1,90 @@
 import React, { useState } from "react";
 import DashboardLayout from "../layout/DashboardLayout";
+import { supabase } from "../supabaseClient";// Ensure you have this file
 
 const UploadModules = () => {
   const [moduleId, setModuleId] = useState("");
   const [moduleData, setModuleData] = useState({
     title: "",
-    category: "Pedagogy",
-    topic: "",
+    competency_area: "Pedagogy", // Changed from 'category' to match DB
     description: "",
-    file: null
+    content_url: ""
   });
   const [isUpdateMode, setIsUpdateMode] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Function to fetch existing module data by ID
-  const handleFetchModule = (e) => {
+  // Fetch existing module
+  const handleFetchModule = async (e) => {
     e.preventDefault();
     if (!moduleId) return alert("Please enter a Module ID");
-
-    // Replace with your real API call: fetch(`/api/modules/${moduleId}`)
-    console.log("Fetching module:", moduleId);
     
-    // Mocking a successful fetch
-    const mockFoundModule = {
-      title: "Advanced Fractions v1",
-      category: "Subject Knowledge",
-      topic: "Mathematics",
-      description: "Original description of the fractions module."
-    };
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('training_modules')
+      .select('*')
+      .eq('id', moduleId)
+      .single();
 
-    setModuleData(mockFoundModule);
-    setIsUpdateMode(true);
-    alert("Module data loaded! You can now edit and update.");
+    if (error) {
+      alert("Module not found!");
+    } else {
+      setModuleData({
+        title: data.title,
+        competency_area: data.competency_area,
+        description: data.description || "",
+        content_url: data.content_url || ""
+      });
+      setIsUpdateMode(true);
+    }
+    setLoading(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isUpdateMode) {
-      console.log("Updating existing module:", moduleId, moduleData);
-      alert(`Module ${moduleId} updated successfully!`);
-    } else {
-      console.log("Uploading new module:", moduleData);
-      alert("New module uploaded successfully!");
+    setLoading(true);
+
+    try {
+      if (isUpdateMode) {
+        const { error } = await supabase
+          .from('training_modules')
+          .update(moduleData)
+          .eq('id', moduleId);
+        
+        if (error) throw error;
+        alert("Module updated successfully!");
+      } else {
+        const { error } = await supabase
+          .from('training_modules')
+          .insert([moduleData]);
+          
+        if (error) throw error;
+        alert("New module published!");
+        // Reset form
+        setModuleData({ title: "", competency_area: "Pedagogy", description: "", content_url: "" });
+      }
+    } catch (error) {
+      alert("Error saving module: " + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const styles = {
+    // ... keep your existing styles ...
     card: { backgroundColor: "#fff", padding: "30px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", maxWidth: "700px" },
     input: { width: "100%", padding: "12px", marginBottom: "20px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "1rem" },
-    row: { display: "flex", gap: "10px", alignItems: "flex-end", marginBottom: "20px" },
     label: { display: "block", marginBottom: "8px", fontWeight: "bold", color: "#333" },
-    button: { backgroundColor: "#003d82", color: "white", padding: "12px 25px", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" },
-    secondaryButton: { backgroundColor: "#6c757d", color: "white", padding: "12px 20px", border: "none", borderRadius: "8px", cursor: "pointer", height: "46px" }
+    button: { backgroundColor: "#003d82", color: "white", padding: "12px 25px", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", opacity: loading ? 0.7 : 1 }
   };
 
   return (
     <DashboardLayout>
       <div style={{ marginBottom: "30px" }}>
         <h1>{isUpdateMode ? "Update Existing Module" : "Upload New Module"}</h1>
-        <p style={{ color: "#666" }}>Manage your training resources for the mobile app</p>
+        <p style={{ color: "#666" }}>Add content for the AI to recommend</p>
       </div>
 
       <div style={styles.card}>
-        {/* Module ID Search Section */}
-        <div style={styles.row}>
-          <div style={{ flex: 1 }}>
-            <label style={styles.label}>Module ID (to update existing)</label>
-            <input 
-              style={{ ...styles.input, marginBottom: 0 }} 
-              type="text" 
-              placeholder="e.g., MOD-123" 
-              value={moduleId}
-              onChange={(e) => setModuleId(e.target.value)}
-            />
-          </div>
-          <button type="button" onClick={handleFetchModule} style={styles.secondaryButton}>Fetch Module</button>
-        </div>
-
-        <hr style={{ margin: "20px 0", border: "0.5px solid #eee" }} />
-
         <form onSubmit={handleSubmit}>
           <label style={styles.label}>Module Title</label>
           <input 
@@ -88,47 +95,38 @@ const UploadModules = () => {
             required 
           />
 
-          <label style={styles.label}>Topic</label>
+          <label style={styles.label}>Competency Area (AI uses this to match)</label>
+          <select 
+            style={styles.input}
+            value={moduleData.competency_area}
+            onChange={(e) => setModuleData({...moduleData, competency_area: e.target.value})}
+          >
+            <option value="Pedagogy">Pedagogy</option>
+            <option value="Content Knowledge">Content Knowledge</option>
+            <option value="Classroom Management">Classroom Management</option>
+            <option value="Student Engagement">Student Engagement</option>
+            <option value="Technology Integration">Technology Integration</option>
+          </select>
+
+          <label style={styles.label}>Content URL (PDF/Video Link)</label>
           <input 
             style={styles.input} 
             type="text" 
-            placeholder="e.g., Algebra, Ethics, Science"
-            value={moduleData.topic}
-            onChange={(e) => setModuleData({...moduleData, topic: e.target.value})}
-            required 
+            placeholder="https://..."
+            value={moduleData.content_url}
+            onChange={(e) => setModuleData({...moduleData, content_url: e.target.value})}
           />
-
-          <label style={styles.label}>Category</label>
-          <select 
-            style={styles.input}
-            value={moduleData.category}
-            onChange={(e) => setModuleData({...moduleData, category: e.target.value})}
-          >
-            <option>Student Management</option>
-            <option>Subject Knowledge</option>
-            <option>Classroom Management</option>
-          </select>
 
           <label style={styles.label}>Description</label>
           <textarea 
-            style={{ ...styles.input, height: "100px", fontFamily: "inherit" }} 
+            style={{ ...styles.input, height: "100px" }} 
             value={moduleData.description}
             onChange={(e) => setModuleData({...moduleData, description: e.target.value})}
           />
 
-          <button type="submit" style={styles.button}>
-            {isUpdateMode ? "Update Module" : "Publish Module"}
+          <button type="submit" style={styles.button} disabled={loading}>
+            {loading ? "Processing..." : (isUpdateMode ? "Update Module" : "Publish Module")}
           </button>
-          
-          {isUpdateMode && (
-            <button 
-              type="button" 
-              onClick={() => {setIsUpdateMode(false); setModuleId(""); setModuleData({title: "", category: "Pedagogy", topic: "", description: ""})}}
-              style={{ ...styles.secondaryButton, marginLeft: "10px", backgroundColor: "transparent", color: "#666" }}
-            >
-              Cancel Update
-            </button>
-          )}
         </form>
       </div>
     </DashboardLayout>

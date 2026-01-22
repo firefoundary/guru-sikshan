@@ -5,7 +5,19 @@ import dashboardRoutes from './dashboard-routes.js';
 
 const app = express();
 
-app.use(cors());
+// ✅ FIXED: Explicitly allow your Frontend ports
+app.use(cors({
+  origin: [
+    'http://localhost:8080',      // Teacher App (localhost)
+    'http://127.0.0.1:8080',      // Teacher App (IPv4)
+    'http://localhost:5173',      // Dashboard (Vite default)
+    'http://127.0.0.1:5173'       // Dashboard (IPv4)
+  ],
+  credentials: true,              // Allow cookies/auth headers
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // Health check

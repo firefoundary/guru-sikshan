@@ -42,7 +42,8 @@ interface FeedbackContextType {
 
 const FeedbackContext = createContext<FeedbackContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// ⚡ FIX: Use 127.0.0.1 to avoid Mac localhost issues
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const { teacher, isAuthenticated } = useAuth();
@@ -53,8 +54,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   // Fetch feedbacks when teacher logs in
   useEffect(() => {
     if (isAuthenticated && teacher?.id) {
+      console.log(`👤 Auth Detected for Teacher: ${teacher.id}`);
       refreshFeedbacks();
     } else {
+      console.log('👤 No Auth User detected yet...');
       setFeedbacks([]);
     }
   }, [isAuthenticated, teacher?.id]);
@@ -62,12 +65,16 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const refreshFeedbacks = async () => {
     if (!teacher?.id) return;
 
+    console.log(`🔄 Fetching feedbacks from: ${API_URL}/api/teacher/feedback/teacher/${teacher.id}`);
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await fetch(`${API_URL}/api/teacher/feedback/teacher/${teacher.id}`);
+      console.log(`📡 Response Status: ${response.status}`);
+      
       const data = await response.json();
+      console.log('📦 Data received:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch feedbacks');
@@ -87,9 +94,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         }));
         
         setFeedbacks(parsedFeedbacks);
+        console.log(`✅ Loaded ${parsedFeedbacks.length} feedbacks`);
       }
     } catch (err) {
-      console.error('Error fetching feedbacks:', err);
+      console.error('❌ Error fetching feedbacks:', err);
       setError(err instanceof Error ? err.message : 'Failed to load feedbacks');
     } finally {
       setIsLoading(false);
@@ -102,6 +110,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       return { success: false };
     }
   
+    console.log('🚀 Submitting Feedback to:', `${API_URL}/api/teacher/feedback`);
     setIsLoading(true);
     setError(null);
   
@@ -120,6 +129,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       });
   
       const result = await response.json();
+      console.log('📤 Submit Result:', result);
   
       if (!response.ok) {
         throw new Error(result.error || 'Failed to submit feedback');
@@ -136,7 +146,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           createdAt: new Date(result.feedback.createdAt),
           updatedAt: new Date(result.feedback.updatedAt),
           adminRemarks: result.feedback.adminRemarks,
-          aiResponse: result.aiResponse, // Include AI response
+          aiResponse: result.aiResponse, 
         };
   
         setFeedbacks(prev => [newFeedback, ...prev]);
@@ -146,7 +156,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   
       throw new Error('Invalid response from server');
     } catch (err) {
-      console.error('Error submitting feedback:', err);
+      console.error('❌ Error submitting feedback:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit feedback');
       setIsLoading(false);
       return { success: false };

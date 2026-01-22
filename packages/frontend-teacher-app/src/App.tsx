@@ -19,6 +19,8 @@ import TrainingDetail from "./pages/TrainingDetail";
 import EditProfile from "./pages/EditProfile";
 import Tutorial from "./pages/Tutorial";
 import NotFound from "./pages/NotFound";
+import TrainingPlayer from './pages/TrainingPlayer';
+import TrainingFeedback from './pages/TrainingFeedback'; // ✅ Import Added
 
 const queryClient = new QueryClient();
 
@@ -152,6 +154,28 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Route for the Demo Player */}
+      <Route
+        path="/training/demo-module"
+        element={
+          <ProtectedRoute>
+            <TrainingPlayer />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ NEW ROUTE: Training Feedback / Rating Page */}
+      <Route
+        path="/training/feedback/:id"
+        element={
+          <ProtectedRoute>
+            <TrainingFeedback />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Existing Training Detail Route */}
       <Route
         path="/training/:id"
         element={
@@ -160,6 +184,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      
       <Route
         path="/edit-profile"
         element={

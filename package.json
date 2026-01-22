@@ -1,0 +1,15 @@
+{
+  "name": "guru-sikshan",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:dashboard": "yarn workspace frontend-dashboard dev",
+    "dev:teacher": "yarn workspace frontend-teacher-app dev",
+    "dev:backend": "yarn workspace backend-api dev"
+  },
+  "overrides": {
+    "esbuild": "0.27.2"
+  }
+}

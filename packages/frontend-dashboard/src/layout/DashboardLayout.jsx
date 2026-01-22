@@ -5,7 +5,7 @@ import Topbar from "../components/Topbar";
 
 const DashboardLayout = ({ children }) => {
   return (
-    <div style={{ display: "flex", height: "100vh", backgroundColor: "#f0f2f5" }}>
+    <div style={{ display: "flex", height: "100vh", backgroundColor: "#ffffff" }}>
       <Sidebar />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
         <Topbar />

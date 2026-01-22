@@ -85,7 +85,7 @@ class SupabaseDB:
                 'status': 'assigned',
                 'completion_percentage': 0
             }
-            response = self.client.table('personalized_trainings').insert(data).execute()
+            response = self.client.table('personalized_training').insert(data).execute()
             return response.data
         except Exception as e:
             print(f"Error saving personalized training: {e}")
