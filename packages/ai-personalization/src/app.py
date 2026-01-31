@@ -46,49 +46,39 @@ def analyze_teacher_gaps():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# app.py - FIXED /api/feedback-to-training endpoint
 @app.route('/api/feedback-to-training', methods=['POST'])
 def feedback_to_training():
     """Convert teacher feedback into personalized training assignment"""
     try:
-        print("\n=== FEEDBACK TO TRAINING ROUTE ===")
         data = request.json
-        print(f"Request data: {data}")
-        
         teacher_id = data.get('teacher_id')
         feedback_id = data.get('feedback_id')
         
         if not teacher_id or not feedback_id:
             return jsonify({'error': 'teacher_id and feedback_id required'}), 400
-        
+
         # 1. Analyze feedback
-        print(f"Analyzing feedback for teacher: {teacher_id}")
         feedback_analysis = feedback_analyzer.analyze_teacher_feedback(teacher_id)
         inferred_gaps = feedback_analysis.get('inferred_gaps', [])
         
         if not inferred_gaps:
-            # Fallback if no gaps found
-            inferred_gaps = ['classroom_management'] 
-        
+            inferred_gaps = ['classroom_management']
+
         # 2. Get teacher
         teacher = db.get_teacher_by_id(teacher_id)
         if not teacher:
             return jsonify({'error': 'Teacher not found'}), 404
-            
+
         # 3. Get cluster context
-        cluster_id = teacher.get('cluster_id')
-        try:
-            cluster_response = db.client.table('clusters').select('*').eq('id', cluster_id).execute()
-            cluster_data = cluster_response.data[0] if cluster_response.data else {}
-        except:
-            cluster_data = {}
-        
+        cluster_id = teacher.get('cluster_id') or teacher.get('cluster')
         cluster_context = {
-            'location': cluster_data.get('location', 'Rural India'),
+            'location': 'Rural India',
             'common_issues': 'general challenges',
             'language': 'Hindi'
         }
-        
-        # 4. Get base training module
+
+        # 4. Get base training module by competency_area
         try:
             module_response = db.client.table('training_modules')\
                 .select('*')\
@@ -99,72 +89,210 @@ def feedback_to_training():
             if module_response.data:
                 base_module = module_response.data[0]
             else:
-                base_module = {'id': 'default', 'title': 'General Pedagogy', 'description': 'Basics'}
+                default_module = {
+                    'title': f'{inferred_gaps[0].replace("_", " ").title()} Training',
+                    'description': f'Personalized training for {inferred_gaps[0]}',
+                    'competency_area': inferred_gaps[0],
+                    'content_type': 'article',
+                    'estimated_duration': '10-15 minutes'
+                }
+                created = db.client.table('training_modules').insert(default_module).execute()
+                base_module = created.data[0]
         except Exception as e:
             print(f"Module fetch error: {e}")
-            base_module = {'id': 'default', 'title': 'Classroom Management', 'description': 'Basics'}
-        
-        # 5. Generate personalized training
-        print("Generating personalized content with AI...")
-        try:
-            model = genai.GenerativeModel('gemini-pro')
-            prompt = f"""
-            You are an expert teacher trainer.
-            Teacher: {teacher.get('name')} 
-            Issue Category: {inferred_gaps[0]}
-            Module: {base_module['title']}
-            
-            Task: Write a very short, encouraging message (2 sentences) assigning this module to help with their recent feedback.
-            """
-            
-            response = model.generate_content(prompt)
-            personalized_text = response.text
-        except Exception as e:
-            print(f"AI Error (using fallback): {e}")
-            personalized_text = f"We have assigned {base_module['title']} to help you with your recent feedback."
+            return jsonify({'error': 'Could not find training module'}), 500
 
-        # ==========================================
-        # 6. SAVE TO DATABASE (THE FIX)
-        # ==========================================
-        print("Saving to database...")
+        # 5. ✅ CHECK FOR EXISTING ASSIGNMENT FIRST
+        print(f"🔍 Checking if teacher {teacher_id} already has module {base_module['id']} assigned...")
+        
+        existing_assignment = db.client.table('teacher_training_assignments')\
+            .select('id, status, progress_percentage, source_feedback_id')\
+            .eq('teacher_id', teacher_id)\
+            .eq('module_id', base_module['id'])\
+            .execute()
+        
+        if existing_assignment.data and len(existing_assignment.data) > 0:
+            existing = existing_assignment.data[0]
+            print(f"⚠️ Training already assigned: {existing['id']} (status: {existing['status']}, progress: {existing['progress_percentage']}%)")
+            
+            # ✅ DELETE FEEDBACK - Assignment already exists, feedback is void
+            if existing['status'] == 'completed':
+                print(f"🗑️ Deleting void feedback {feedback_id} - training already completed")
+                try:
+                    db.client.table('feedback').delete().eq('id', feedback_id).execute()
+                    print(f"✅ Feedback deleted from database")
+                except Exception as e:
+                    print(f"⚠️ Failed to delete feedback: {e}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Training already completed',
+                    'skipped_ai_call': True,
+                    'feedback_deleted': True,
+                    'reason': 'Assignment already completed'
+                })
+            
+            # ✅ DELETE FEEDBACK - Training in progress, no need for duplicate feedback
+            if existing['status'] == 'in_progress':
+                print(f"🗑️ Deleting void feedback {feedback_id} - training in progress")
+                try:
+                    db.client.table('feedback').delete().eq('id', feedback_id).execute()
+                    print(f"✅ Feedback deleted from database")
+                except Exception as e:
+                    print(f"⚠️ Failed to delete feedback: {e}")
+                
+                # Just update the source_feedback_id reference (even though we deleted it)
+                db.client.table('teacher_training_assignments')\
+                    .update({'source_feedback_id': None})\
+                    .eq('id', existing['id'])\
+                    .execute()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Training in progress',
+                    'skipped_ai_call': True,
+                    'feedback_deleted': True,
+                    'reason': 'Assignment already in progress'
+                })
+            
+            # For 'not_started' - keep feedback and regenerate content
+            print(f"🔄 Updating existing not_started assignment...")
+
+        # 6. ✅ Generate personalized content with AI (for new or not_started)
+        print(f"🤖 Calling Gemini API to generate personalized content...")
         try:
-            # We use DIRECT INSERT to ensure feedback_id is included
-            training_payload = {
-                "teacher_id": teacher_id,
-                "training_module": base_module['title'],  # The name of the module
-                "content": personalized_text,
-                "status": "assigned",
-                "feedback_id": feedback_id,  # <--- ✅ THIS IS THE CRITICAL LINK
-                "completion_percentage": 0
+            teacher_profile = {
+                'name': teacher.get('name'),
+                'subject': 'General',
+                'experience': 5,
+                'gap_areas': inferred_gaps
             }
             
-            db.client.table('personalized_training').insert(training_payload).execute()
-            print("✅ Saved to personalized_training with feedback_id link!")
+            personalization_result = personalizer.personalize_training_module(
+                base_module,
+                teacher_profile,
+                cluster_context
+            )
+            
+            personalized_content = personalization_result.get('personalized_content')
+            adaptation_metadata = personalization_result.get('adaptations_made', {})
+            print(f"✅ AI content generated successfully")
             
         except Exception as e:
-            print(f"Database save error: {e}")
-            traceback.print_exc()
+            print(f"⚠️ AI Error: {e} - using fallback content")
+            personalized_content = base_module.get('description', 'Training content')
+            adaptation_metadata = {}
         
-        # 7. Update feedback status
+        # 7. Save or update assignment and content
+        try:
+            if existing_assignment.data and len(existing_assignment.data) > 0:
+                # Update existing not_started assignment
+                existing = existing_assignment.data[0]
+                db.client.table('teacher_training_assignments')\
+                    .update({
+                        'source_feedback_id': feedback_id,
+                        'assigned_reason': f"Updated: {', '.join(inferred_gaps)} (from recent feedback)"
+                    })\
+                    .eq('id', existing['id'])\
+                    .execute()
+                
+                assignment_id = existing['id']
+                print(f"✅ Updated existing assignment")
+                
+                # Upsert personalized content
+                existing_content = db.client.table('personalized_training')\
+                    .select('id')\
+                    .eq('teacher_id', teacher_id)\
+                    .eq('module_id', base_module['id'])\
+                    .execute()
+                
+                if existing_content.data and len(existing_content.data) > 0:
+                    db.client.table('personalized_training')\
+                        .update({
+                            'personalized_content': personalized_content,
+                            'adaptation_metadata': adaptation_metadata,
+                            'feedback_id': feedback_id
+                        })\
+                        .eq('teacher_id', teacher_id)\
+                        .eq('module_id', base_module['id'])\
+                        .execute()
+                    print(f"✅ Updated personalized content")
+                else:
+                    db.client.table('personalized_training')\
+                        .insert({
+                            'teacher_id': teacher_id,
+                            'module_id': base_module['id'],
+                            'personalized_content': personalized_content,
+                            'adaptation_metadata': adaptation_metadata,
+                            'feedback_id': feedback_id
+                        })\
+                        .execute()
+                    print(f"✅ Created personalized content")
+                
+                already_existed = True
+            else:
+                # Create NEW assignment
+                print(f"✨ Creating NEW training assignment...")
+                assignment_payload = {
+                    "teacher_id": teacher_id,
+                    "module_id": base_module['id'],
+                    "assigned_by": "ai",
+                    "assigned_reason": f"Based on feedback: {', '.join(inferred_gaps)}",
+                    "source_feedback_id": feedback_id,
+                    "status": "not_started",
+                    "progress_percentage": 0
+                }
+                
+                assignment_result = db.client.table('teacher_training_assignments')\
+                    .insert(assignment_payload)\
+                    .execute()
+                
+                assignment_id = assignment_result.data[0]['id']
+                print(f"✅ Created new assignment: {assignment_id}")
+                
+                # Save personalized content
+                personalized_payload = {
+                    "teacher_id": teacher_id,
+                    "module_id": base_module['id'],
+                    "personalized_content": personalized_content,
+                    "adaptation_metadata": adaptation_metadata,
+                    "feedback_id": feedback_id
+                }
+                
+                db.client.table('personalized_training').insert(personalized_payload).execute()
+                print(f"✅ Created personalized content")
+                
+                already_existed = False
+            
+        except Exception as e:
+            print(f"❌ Database save error: {e}")
+            traceback.print_exc()
+            return jsonify({'error': f'Failed to save training: {str(e)}'}), 500
+
+        # 8. Update feedback status (keep it for new/not_started assignments)
         try:
             db.client.table('feedback').update({
                 'status': 'training_assigned'
             }).eq('id', feedback_id).execute()
+            print(f"✅ Updated feedback status to 'training_assigned'")
         except Exception as e:
-            print(f"Feedback update error: {e}")
-        
+            print(f"⚠️ Feedback update error: {e}")
+
         print("=== FEEDBACK TO TRAINING COMPLETE ===\n")
-        
+
         return jsonify({
             'success': True,
             'assigned_module': base_module['title'],
-            'personalized_message': personalized_text
+            'personalized_message': personalized_content[:200] + '...',
+            'already_existed': already_existed,
+            'feedback_deleted': False
         })
-        
+                
     except Exception as e:
-        print(f" UNEXPECTED ERROR: {e}")
+        print(f"❌ UNEXPECTED ERROR: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     port = int(os.getenv('FLASK_PORT', 5001))

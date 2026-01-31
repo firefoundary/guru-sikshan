@@ -154,7 +154,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Route for the Demo Player */}
       <Route
         path="/training/demo-module"
@@ -165,9 +165,9 @@ function AppRoutes() {
         }
       />
 
-      {/* ✅ NEW ROUTE: Training Feedback / Rating Page */}
+      {/* ✅ MOVE THIS BEFORE /training/:id */}
       <Route
-        path="/training/feedback/:id"
+        path="/training/:id/feedback"
         element={
           <ProtectedRoute>
             <TrainingFeedback />
@@ -175,7 +175,7 @@ function AppRoutes() {
         }
       />
 
-      {/* Existing Training Detail Route */}
+      {/* ✅ This should come LAST among training routes */}
       <Route
         path="/training/:id"
         element={
@@ -184,7 +184,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      
+
       <Route
         path="/edit-profile"
         element={

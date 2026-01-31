@@ -103,24 +103,34 @@ router.get('/feedback/:id', async (req, res) => {
 
 router.post('/feedback', async (req, res) => {
   const { teacherId, cluster, category, description } = req.body;
-  console.log('📝 Feedback submission received:', { teacherId, cluster, category });
-
+  
+  console.log('Feedback submission received:', teacherId, cluster, category);
+  
   try {
     // 1. Save to Supabase
     const { data: feedbackData, error: feedbackError } = await supabase
       .from('feedback')
-      .insert([{ teacher_id: teacherId, cluster, category, description, status: 'pending' }])
+      .insert({
+        teacher_id: teacherId,
+        cluster,
+        category,
+        description,
+        status: 'pending'
+      })
       .select()
       .single();
-
+    
     if (feedbackError) throw feedbackError;
-    console.log('✅ Feedback saved with ID:', feedbackData.id);
-
+    
+    console.log(`✅ Feedback saved with ID: ${feedbackData.id}...`);
+    
     // 2. Call AI Service
     let aiResponse = null;
+    let fullAiResponse = null; // ✅ NEW: Store full response
+    
     try {
       const aiServiceUrl = `${AI_SERVICE_URL}/api/feedback-to-training`;
-      console.log('🤖 Calling AI Service at:', aiServiceUrl);
+      console.log('Calling AI Service at:', aiServiceUrl);
       
       const aiResult = await fetch(aiServiceUrl, {
         method: 'POST',
@@ -128,33 +138,182 @@ router.post('/feedback', async (req, res) => {
         body: JSON.stringify({
           teacher_id: teacherId,
           feedback_id: feedbackData.id,
-          admin_id: 'system_auto'
+          admin_id: 'system-auto'
         })
       });
-
+      
       if (aiResult.ok) {
         const aiData = await aiResult.json();
-        console.log('✅ AI Training Assigned');
+        console.log('✅ AI Service Response:', aiData);
+        
+        fullAiResponse = aiData; // ✅ Store the complete response
+        
+        // Check if training was already assigned
+        if ((aiData as any).feedback_deleted || (aiData as any).skipped_ai_call) {
+          console.log('⚠️ Training already assigned - feedback deleted');
+          
+          // ✅ Return the AI response directly with all fields
+          return res.status(200).json({
+            success: true,
+            feedback_deleted: (aiData as any).feedback_deleted,
+            skipped_ai_call: (aiData as any).skipped_ai_call,
+            message: (aiData as any).message,
+            reason: (aiData as any).reason,
+            already_existed: true
+          });
+        }
+        
+        // Normal flow - new training assigned
         aiResponse = {
-          suggestion: `Training Assigned: ${aiData.assigned_module}`,
-          inferredGaps: aiData.inferred_gaps,
+          suggestion: `Training Assigned: ${(aiData as any).assigned_module}`,
+          inferredGaps: (aiData as any).inferred_gaps,
           priority: 'high'
         };
       }
     } catch (aiError) {
-      console.error('⚠️ AI Service Unreachable (Skipping):', aiError);
+      console.error('AI Service Unreachable - Skipping:', aiError);
     }
-
+    
+    // ✅ Return success for new assignments
     res.status(201).json({
       success: true,
       feedback: feedbackData,
       aiResponse
     });
+    
   } catch (error) {
     console.error('Submit feedback error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ✅ RE-ADDED: This export is critical!
+
+// teacher-routes.ts - ADD THIS ROUTE
+
+// ==================== TRAINING ENDPOINTS ====================
+
+// Get all training assignments for a teacher (with joined module data)
+router.get('/training/:teacherId', async (req, res) => {
+  const { teacherId } = req.params;
+  
+  console.log(`🎓 Fetching training assignments for teacher: ${teacherId}`);
+  
+  try {
+    // Query teacher_training_assignments with JOIN to training_modules
+    const { data: assignments, error: assignmentError } = await supabase
+      .from('teacher_training_assignments')
+      .select(`
+        *,
+        training_modules (
+          id, title, description, competency_area, difficulty_level,
+          estimated_duration, content_type, video_url, article_content
+        )
+      `)
+      .eq('teacher_id', teacherId)
+      .order('assigned_date', { ascending: false });
+
+    if (assignmentError) {
+      console.error('❌ Supabase error:', assignmentError);
+      throw assignmentError;
+    }
+
+    console.log(`📦 Found ${assignments?.length || 0} assignments in database`);
+
+    // Fetch personalized content separately
+    const { data: personalizedData, error: personalizedError } = await supabase
+      .from('personalized_training')
+      .select('module_id, personalized_content')
+      .eq('teacher_id', teacherId);
+
+    if (personalizedError) {
+      console.warn('⚠️ Could not fetch personalized content:', personalizedError);
+    }
+
+    // Create a map of module_id -> personalized_content
+    const personalizedMap: Record<string, string> = {};
+    if (personalizedData) {
+      personalizedData.forEach(p => {
+        personalizedMap[p.module_id] = p.personalized_content;
+      });
+    }
+
+    console.log(`📝 Found ${Object.keys(personalizedMap).length} personalized content entries`);
+
+    // Transform to frontend format
+    const trainings = assignments?.map(assignment => ({
+      id: assignment.id,
+      teacherId: assignment.teacher_id,
+      moduleId: assignment.module_id,
+      assignedBy: assignment.assigned_by,
+      assignedReason: assignment.assigned_reason,
+      sourceFeedbackId: assignment.source_feedback_id,
+      status: assignment.status,
+      progressPercentage: assignment.progress_percentage || 0,
+      assignedDate: assignment.assigned_date,
+      startedAt: assignment.started_at,
+      completedAt: assignment.completed_at,
+      dueDate: assignment.due_date,
+      videoWatchTimeSeconds: assignment.video_watch_time_seconds || 0,
+      videoCompleted: assignment.video_completed || false,
+      module: assignment.training_modules ? {
+        id: assignment.training_modules.id,
+        title: assignment.training_modules.title,
+        description: assignment.training_modules.description,
+        competencyArea: assignment.training_modules.competency_area,
+        difficultyLevel: assignment.training_modules.difficulty_level,
+        estimatedDuration: assignment.training_modules.estimated_duration,
+        contentType: assignment.training_modules.content_type,
+        videoUrl: assignment.training_modules.video_url,
+        articleContent: assignment.training_modules.article_content,
+      } : undefined,
+      personalizedContent: personalizedMap[assignment.module_id] || null, // ✅ ADD PERSONALIZED CONTENT
+    })) || [];
+
+    console.log(`✅ Sending ${trainings.length} training assignments to frontend`);
+    
+    res.json({ success: true, trainings });
+  } catch (error) {
+    console.error('❌ Get training error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update training progress
+router.patch('/training/:trainingId/progress', async (req, res) => {
+  const { trainingId } = req.params;
+  const { progress_percentage, status, started_at, completed_at } = req.body;
+
+  console.log(`📊 Updating progress for training ${trainingId}:`, { progress_percentage, status });
+
+  try {
+    const updateData: any = { 
+      progress_percentage,
+      status
+    };
+    
+    if (started_at) updateData.started_at = started_at;
+    if (completed_at) updateData.completed_at = completed_at;
+
+    const { data, error } = await supabase
+      .from('teacher_training_assignments')
+      .update(updateData)
+      .eq('id', trainingId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Update error:', error);
+      throw error;
+    }
+
+    console.log('✅ Progress updated successfully');
+
+    res.json({ success: true, training: data });
+  } catch (error) {
+    console.error('❌ Update progress error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
 export default router;

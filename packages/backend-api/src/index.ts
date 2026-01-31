@@ -14,7 +14,7 @@ app.use(cors({
     'http://127.0.0.1:5173'       // Dashboard (IPv4)
   ],
   credentials: true,              // Allow cookies/auth headers
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 

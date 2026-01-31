@@ -4,7 +4,7 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen, Clock, CheckCircle, PlayCircle, Calendar, ChevronRight } from 'lucide-react';
+import { BookOpen, Clock, CheckCircle, PlayCircle, ChevronRight, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Training() {
@@ -12,31 +12,35 @@ export default function Training() {
   const navigate = useNavigate();
 
   const stats = [
-    { 
-      label: 'Not Started', 
-      count: notStartedCount, 
-      icon: Clock, 
+    {
+      label: 'Not Started',
+      count: notStartedCount,
+      icon: Clock,
       color: 'text-muted-foreground',
       bgColor: 'bg-muted',
     },
-    { 
-      label: 'In Progress', 
-      count: inProgressCount, 
+    {
+      label: 'In Progress',
+      count: inProgressCount,
       icon: PlayCircle,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-100 dark:bg-blue-900/30',
     },
-    { 
-      label: 'Completed', 
-      count: completedCount, 
+    {
+      label: 'Completed',
+      count: completedCount,
       icon: CheckCircle,
       color: 'text-emerald-600 dark:text-emerald-400',
       bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
     },
   ];
 
-  const getProgressPercentage = (completed: number, total: number) => {
-    return Math.round((completed / total) * 100);
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }).format(date);
   };
 
   const getDaysRemaining = (dueDate: Date) => {
@@ -49,8 +53,19 @@ export default function Training() {
   if (isLoading) {
     return (
       <MobileLayout>
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="sticky top-0 bg-background border-b z-10 px-4 py-3">
+            <h1 className="text-xl font-bold">My Training</h1>
+          </div>
+
+          {/* Loading State */}
+          <div className="flex items-center justify-center flex-1">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-muted-foreground">Loading your trainings...</p>
+            </div>
+          </div>
         </div>
       </MobileLayout>
     );
@@ -58,109 +73,140 @@ export default function Training() {
 
   return (
     <MobileLayout>
-      <div className="px-4 py-6">
-        <h1 className="mb-6 text-2xl font-bold text-foreground">My Training</h1>
+      <div className="flex flex-col h-full pb-20">
+        {/* Header */}
+        <div className="sticky top-0 bg-background border-b z-10 px-4 py-3">
+          <h1 className="text-xl font-bold">My Training</h1>
+        </div>
 
-        {/* Stats */}
-        <div className="mb-6 grid grid-cols-3 gap-3">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-3 gap-2 p-4">
           {stats.map((stat) => (
-            <Card key={stat.label} className="overflow-hidden">
-              <CardContent className="p-3 text-center">
-                <div className={cn("mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full", stat.bgColor)}>
-                  <stat.icon className={cn("h-5 w-5", stat.color)} />
+            <Card key={stat.label}>
+              <CardContent className="p-3">
+                <div className={cn("flex items-center justify-center w-8 h-8 rounded-full mx-auto mb-2", stat.bgColor)}>
+                  <stat.icon className={cn("w-4 h-4", stat.color)} />
                 </div>
-                <p className="text-2xl font-bold text-foreground">{stat.count}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
+                <div className="text-2xl font-bold text-center">{stat.count}</div>
+                <div className="text-xs text-muted-foreground text-center">{stat.label}</div>
               </CardContent>
             </Card>
           ))}
         </div>
 
         {/* Training List with Tabs */}
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="mb-4 grid w-full grid-cols-4">
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="not_started">New</TabsTrigger>
-            <TabsTrigger value="in_progress">Active</TabsTrigger>
-            <TabsTrigger value="completed">Done</TabsTrigger>
-          </TabsList>
+        <div className="px-4 flex-1 overflow-auto">
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 mb-4">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="not_started">New</TabsTrigger>
+              <TabsTrigger value="in_progress">Active</TabsTrigger>
+              <TabsTrigger value="completed">Done</TabsTrigger>
+            </TabsList>
 
-          {['all', 'not_started', 'in_progress', 'completed'].map((tab) => (
-            <TabsContent key={tab} value={tab} className="space-y-3">
-              {trainings
-                .filter(t => tab === 'all' || t.status === tab)
-                .map((training) => {
-                  const progress = getProgressPercentage(training.completedLessons, training.totalLessons);
-                  const daysRemaining = getDaysRemaining(training.dueDate);
-                  
-                  return (
-                    <Card 
-                      key={training.id}
-                      className="cursor-pointer transition-colors hover:bg-muted/50"
-                      onClick={() => navigate(`/training/${training.id}`)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="mb-1 flex items-center gap-2">
-                              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                                {training.category}
-                              </span>
-                              <TrainingStatusBadge status={training.status} />
-                            </div>
-                            
-                            <h3 className="mb-1 font-semibold text-foreground line-clamp-1">
-                              {training.title}
-                            </h3>
-                            
-                            <p className="mb-3 text-sm text-muted-foreground line-clamp-2">
-                              {training.description}
-                            </p>
-
-                            {/* Progress Bar */}
-                            <div className="mb-2">
-                              <div className="mb-1 flex items-center justify-between text-xs">
-                                <span className="text-muted-foreground">
-                                  {training.completedLessons} of {training.totalLessons} lessons
+            {['all', 'not_started', 'in_progress', 'completed'].map((tab) => (
+              <TabsContent key={tab} value={tab} className="space-y-3 pb-4">
+                {trainings
+                  .filter(t => tab === 'all' || t.status === tab)
+                  .map((training) => {
+                    const daysRemaining = getDaysRemaining(training.dueDate);
+                    
+                    return (
+                      <Card
+                        key={training.id}
+                        className="cursor-pointer hover:bg-accent/50 transition-colors"
+                        onClick={() => navigate(`/training/${training.id}`)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              {/* Training Module Title */}
+                              <h3 className="font-semibold text-base mb-1">
+                                {training.module?.title || 'Unnamed Training'}
+                              </h3>
+                              
+                              {/* Competency Badge */}
+                              {training.module?.competencyArea && (
+                                <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 mb-2">
+                                  {training.module.competencyArea.replace(/_/g, ' ')}
                                 </span>
-                                <span className="font-medium text-foreground">{progress}%</span>
-                              </div>
-                              <Progress value={progress} className="h-2" />
+                              )}
+                              
+                              {/* Content Preview */}
+                              <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                                {training.personalizedContent 
+                                  ? training.personalizedContent.substring(0, 120) + '...'
+                                  : training.module?.description || 'No description available'}
+                              </p>
                             </div>
+                            
+                            <ChevronRight className="w-5 h-5 text-muted-foreground ml-2 flex-shrink-0" />
+                          </div>
 
-                            {/* Due Date */}
+                          {/* Progress Bar */}
+                          <div className="space-y-1 mb-3">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Progress</span>
+                              <span className="font-semibold">{training.progressPercentage}%</span>
+                            </div>
+                            <Progress value={training.progressPercentage} className="h-2" />
+                          </div>
+
+                          {/* Footer: Status Badge and Due Date */}
+                          <div className="flex items-center justify-between">
+                            <TrainingStatusBadge status={training.status} />
+                            
+                            {/* Due Date with Icon */}
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              {training.status === 'completed' ? (
-                                <span>Completed {training.completedAt?.toLocaleDateString()}</span>
+                              <Calendar className="w-3 h-3" />
+                              {training.status === 'completed' && training.completedAt ? (
+                                <span className="text-emerald-600 dark:text-emerald-400">
+                                  Completed {formatDate(training.completedAt)}
+                                </span>
                               ) : daysRemaining < 0 ? (
-                                <span className="text-destructive">Overdue by {Math.abs(daysRemaining)} days</span>
+                                <span className="text-red-600 dark:text-red-400">
+                                  Overdue by {Math.abs(daysRemaining)} days
+                                </span>
                               ) : daysRemaining === 0 ? (
-                                <span className="text-amber-600 dark:text-amber-400">Due today</span>
+                                <span className="text-orange-600 dark:text-orange-400">
+                                  Due today
+                                </span>
                               ) : (
-                                <span>{daysRemaining} days remaining</span>
+                                <span>Due in {daysRemaining} days</span>
                               )}
                             </div>
                           </div>
-                          
-                          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-6" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
 
-              {trainings.filter(t => tab === 'all' || t.status === tab).length === 0 && (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <BookOpen className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                          {/* Optional: Difficulty Level */}
+                          {training.module?.difficultyLevel && (
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              Difficulty: <span className="capitalize">{training.module.difficultyLevel}</span>
+                              {training.module.estimatedDuration && (
+                                <> • Duration: {training.module.estimatedDuration}</>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+
+                {/* Empty State */}
+                {trainings.filter(t => tab === 'all' || t.status === tab).length === 0 && (
+                  <div className="text-center py-12">
+                    <BookOpen className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
                     <p className="text-muted-foreground">No trainings found</p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
+                    {tab !== 'all' && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Try switching to another tab
+                      </p>
+                    )}
+                  </div>
+                )}
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
       </div>
     </MobileLayout>
   );
@@ -168,13 +214,26 @@ export default function Training() {
 
 function TrainingStatusBadge({ status }: { status: string }) {
   const config = {
-    not_started: { color: 'bg-muted text-muted-foreground', label: 'Not Started' },
-    in_progress: { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', label: 'In Progress' },
-    completed: { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', label: 'Completed' },
+    not_started: { 
+      color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', 
+      label: 'Not Started' 
+    },
+    in_progress: { 
+      color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', 
+      label: 'In Progress' 
+    },
+    completed: { 
+      color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', 
+      label: 'Completed' 
+    },
+    skipped: {
+      color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
+      label: 'Skipped'
+    }
   }[status] || { color: 'bg-muted text-muted-foreground', label: status };
 
   return (
-    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", config.color)}>
+    <span className={cn("px-2 py-1 rounded-full text-xs font-medium", config.color)}>
       {config.label}
     </span>
   );

@@ -21,17 +21,28 @@ export interface Feedback {
   };
 }
 
+// ✅ NEW: Separate interface for submission result
+export interface FeedbackSubmissionResult {
+  success: boolean;
+  feedback?: any;
+  aiResponse?: {
+    suggestion: string;
+    inferredGaps: string[];
+    priority: string;
+  };
+  // ✅ Fields for "already assigned" scenario
+  feedback_deleted?: boolean;
+  skipped_ai_call?: boolean;
+  message?: string;
+  reason?: string;
+  assigned_module?: string;
+  already_existed?: boolean;
+}
+
 interface FeedbackContextType {
   feedbacks: Feedback[];
   isLoading: boolean;
-  submitFeedback: (data: Omit<Feedback, 'id' | 'status' | 'createdAt' | 'updatedAt'>) => Promise<{
-    success: boolean;
-    aiResponse?: {
-      suggestion: string;
-      inferredGaps: string[];
-      priority: string;
-    };
-  }>;
+  submitFeedback: (data: Omit<Feedback, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'aiResponse'>) => Promise<FeedbackSubmissionResult>; // ✅ Updated return type
   getFeedbackById: (id: string) => Feedback | undefined;
   refreshFeedbacks: () => Promise<void>;
   pendingCount: number;
@@ -104,7 +115,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const submitFeedback = async (data: Omit<Feedback, 'id' | 'status' | 'createdAt' | 'updatedAt'>): Promise<{success: boolean; aiResponse?: any}> => {
+  // ✅ UPDATED: Return FeedbackSubmissionResult with all fields
+  const submitFeedback = async (
+    data: Omit<Feedback, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'aiResponse'>
+  ): Promise<FeedbackSubmissionResult> => {
     if (!teacher?.id) {
       setError('You must be logged in to submit feedback');
       return { success: false };
@@ -134,7 +148,24 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         throw new Error(result.error || 'Failed to submit feedback');
       }
+
+      // ✅ Check if feedback was deleted (training already assigned)
+      if (result.feedback_deleted === true || result.skipped_ai_call === true) {
+        console.log('⚠️ Training already assigned - feedback was deleted');
+        setIsLoading(false);
+        
+        // Return the "already assigned" response
+        return {
+          success: true,
+          feedback_deleted: result.feedback_deleted,
+          skipped_ai_call: result.skipped_ai_call,
+          message: result.message,
+          reason: result.reason,
+          already_existed: result.already_existed,
+        };
+      }
   
+      // ✅ Normal flow - new feedback created
       if (result.success && result.feedback) {
         const newFeedback: Feedback = {
           id: result.feedback.id,
@@ -151,10 +182,16 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   
         setFeedbacks(prev => [newFeedback, ...prev]);
         setIsLoading(false);
-        return { success: true, aiResponse: result.aiResponse };
+        
+        return { 
+          success: true, 
+          feedback: result.feedback,
+          aiResponse: result.aiResponse 
+        };
       }
   
       throw new Error('Invalid response from server');
+      
     } catch (err) {
       console.error('❌ Error submitting feedback:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit feedback');

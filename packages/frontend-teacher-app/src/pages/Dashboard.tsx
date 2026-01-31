@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeedback } from '@/contexts/FeedbackContext';
+import { useTraining } from '@/contexts/TrainingContext'; // ✅ ADD THIS
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,149 +10,151 @@ import { PlusCircle, Clock, Eye, CheckCircle, MapPin } from 'lucide-react';
 export default function Dashboard() {
   const { teacher } = useAuth();
   const { pendingCount, inReviewCount, resolvedCount, feedbacks } = useFeedback();
+  const { trainings } = useTraining(); // ✅ ADD THIS
   const navigate = useNavigate();
 
   const recentFeedbacks = feedbacks.slice(0, 3);
 
   const stats = [
-    { 
-      label: 'Pending', 
-      count: pendingCount, 
-      icon: Clock, 
+    {
+      label: 'Pending',
+      count: pendingCount,
+      icon: Clock,
       color: 'text-amber-600 dark:text-amber-400',
       bgColor: 'bg-amber-100 dark:bg-amber-900/30',
     },
-    { 
-      label: 'In Review', 
-      count: inReviewCount, 
+    {
+      label: 'In Review',
+      count: inReviewCount,
       icon: Eye,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-100 dark:bg-blue-900/30',
     },
-    { 
-      label: 'Resolved', 
-      count: resolvedCount, 
+    {
+      label: 'Resolved',
+      count: resolvedCount,
       icon: CheckCircle,
       color: 'text-emerald-600 dark:text-emerald-400',
       bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
     },
   ];
 
+  // ✅ NEW: Helper function to find training from feedback
+  const getTrainingFromFeedback = (feedbackId: string) => {
+    return trainings.find(t => t.sourceFeedbackId === feedbackId);
+  };
+
+  // ✅ NEW: Handle click - navigate to training if exists, otherwise feedback detail
+  const handleFeedbackClick = (feedbackId: string) => {
+    const training = getTrainingFromFeedback(feedbackId);
+    if (training) {
+      navigate(`/training/${training.id}` , {
+        state: { from: '/dashboard' }
+      });
+    } else {
+      // Fallback: navigate to feedback detail if no training found
+      navigate(`/feedback/${feedbackId}`,{
+        state: {from: '/dashboard'}
+      });
+    }
+  };
+
   return (
     <MobileLayout>
-      <div className="px-4 py-6">
-        {/* Header */}
-        <div className="mb-6">
-          <p className="text-sm text-muted-foreground">Welcome back,</p>
-          <h1 className="text-2xl font-bold text-foreground">{teacher?.name}</h1>
-          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="h-3.5 w-3.5" />
+      <div className="p-4 space-y-6">
+        {/* Welcome Header */}
+        <div>
+          <h1 className="text-2xl font-bold">
+            Welcome back, <span className="text-primary">{teacher?.name}</span>
+          </h1>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+            <MapPin className="w-4 h-4" />
             <span>{teacher?.cluster}</span>
           </div>
         </div>
 
-        {/* CTA Button */}
+        {/* Quick Action */}
         <Button 
           onClick={() => navigate('/report')} 
-          className="mb-6 w-full gap-2" 
+          className="w-full" 
           size="lg"
         >
-          <PlusCircle className="h-5 w-5" />
+          <PlusCircle className="w-5 h-5 mr-2" />
           Report an Issue
         </Button>
 
-        {/* Stats */}
-        <div className="mb-6 grid grid-cols-3 gap-3">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-3 gap-3">
           {stats.map((stat) => (
-            <Card key={stat.label} className="overflow-hidden">
-              <CardContent className="p-3 text-center">
-                <div className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${stat.bgColor}`}>
-                  <stat.icon className={`h-5 w-5 ${stat.color}`} />
+            <Card key={stat.label}>
+              <CardContent className="p-4 text-center">
+                <div className={`${stat.bgColor} ${stat.color} w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2`}>
+                  <stat.icon className="w-5 h-5" />
                 </div>
-                <p className="text-2xl font-bold text-foreground">{stat.count}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
+                <div className="text-2xl font-bold">{stat.count}</div>
+                <div className="text-xs text-muted-foreground">{stat.label}</div>
               </CardContent>
             </Card>
           ))}
         </div>
 
         {/* Recent Activity */}
-        {recentFeedbacks.length > 0 && (
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-semibold text-foreground">Recent Activity</h2>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate('/history')}
-                className="text-primary"
-              >
-                View all
-              </Button>
-            </div>
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold">Recent Activity</h2>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/history')}
+            >
+              View All
+            </Button>
+          </div>
 
+          {recentFeedbacks.length > 0 ? (
             <div className="space-y-3">
               {recentFeedbacks.map((feedback) => (
                 <Card 
-                  key={feedback.id} 
-                  className="cursor-pointer transition-colors hover:bg-muted/50"
-                  onClick={() => navigate(`/feedback/${feedback.id}`)}
+                  key={feedback.id}
+                  className="cursor-pointer hover:bg-accent transition-colors"
+                  onClick={() => handleFeedbackClick(feedback.id)} // ✅ UPDATED
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="mb-1 text-sm font-medium capitalize text-foreground">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm mb-1">
                           {feedback.category.replace('_', ' ')} Issue
-                        </p>
-                        <p className="line-clamp-2 text-sm text-muted-foreground">
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
                           {feedback.description}
                         </p>
-                        <p className="mt-2 text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground mt-2">
                           {feedback.createdAt.toLocaleDateString()}
-                        </p>
+                        </div>
                       </div>
-                      <StatusIndicator status={feedback.status} />
+                      {/* ✅ Show if training was assigned */}
+                      {getTrainingFromFeedback(feedback.id) && (
+                        <div className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-1 rounded">
+                          Training Assigned
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
-          </div>
-        )}
-
-        {feedbacks.length === 0 && (
-          <Card className="mt-8">
-            <CardContent className="py-12 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                <PlusCircle className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="mb-2 font-semibold text-foreground">No issues reported yet</h3>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Start by reporting your first issue
-              </p>
-              <Button onClick={() => navigate('/report')}>
-                Report an Issue
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <div className="text-muted-foreground mb-2">No issues reported yet</div>
+                <p className="text-sm text-muted-foreground">
+                  Start by reporting your first issue
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </MobileLayout>
-  );
-}
-
-function StatusIndicator({ status }: { status: string }) {
-  const config = {
-    pending: { color: 'bg-amber-500', label: 'Pending' },
-    in_review: { color: 'bg-blue-500', label: 'In Review' },
-    resolved: { color: 'bg-emerald-500', label: 'Resolved' },
-    rejected: { color: 'bg-destructive', label: 'Rejected' },
-  }[status] || { color: 'bg-muted', label: status };
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className={`h-2 w-2 rounded-full ${config.color}`} />
-      <span className="text-xs text-muted-foreground">{config.label}</span>
-    </div>
   );
 }
