@@ -9,10 +9,8 @@ dotenv.config({
   path: path.resolve(__dirname, '../../..', '.env'),
 });
 
-// ✅ RE-ADDED: This was missing!
 const router = Router();
 
-// ✅ FIXED: Using IPv4 to prevent Mac connection issues
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:5001';
 
 // ==================== AUTH ENDPOINTS ====================
@@ -51,11 +49,10 @@ router.post('/auth/login', async (req, res) => {
 
 // ==================== FEEDBACK ENDPOINTS ====================
 
-// 🔍 DEBUG VERSION: Get all feedback for a teacher
 router.get('/feedback/teacher/:teacherId', async (req, res) => {
   const { teacherId } = req.params;
 
-  console.log(`\n🔍 HISTORY REQUEST: Checking feedback for Teacher ID: [${teacherId}]`);
+  console.log(`\nHISTORY REQUEST: Checking feedback for Teacher ID: [${teacherId}]`);
 
   try {
     const { data, error } = await supabase
@@ -65,11 +62,11 @@ router.get('/feedback/teacher/:teacherId', async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Supabase Query Error:', error.message);
+      console.error('Supabase Query Error:', error.message);
       throw error;
     }
 
-    console.log(`✅ Found ${data?.length || 0} rows for THIS teacher.`);
+    console.log(`Found ${data?.length || 0} rows for THIS teacher.`);
     
     const feedbacks = data.map(item => ({
       id: item.id,
@@ -107,7 +104,6 @@ router.post('/feedback', async (req, res) => {
   console.log('Feedback submission received:', teacherId, cluster, category);
   
   try {
-    // 1. Save to Supabase
     const { data: feedbackData, error: feedbackError } = await supabase
       .from('feedback')
       .insert({
@@ -122,11 +118,10 @@ router.post('/feedback', async (req, res) => {
     
     if (feedbackError) throw feedbackError;
     
-    console.log(`✅ Feedback saved with ID: ${feedbackData.id}...`);
+    console.log(`Feedback saved with ID: ${feedbackData.id}...`);
     
-    // 2. Call AI Service
     let aiResponse = null;
-    let fullAiResponse = null; // ✅ NEW: Store full response
+    let fullAiResponse = null;
     
     try {
       const aiServiceUrl = `${AI_SERVICE_URL}/api/feedback-to-training`;
@@ -144,15 +139,13 @@ router.post('/feedback', async (req, res) => {
       
       if (aiResult.ok) {
         const aiData = await aiResult.json();
-        console.log('✅ AI Service Response:', aiData);
+        console.log('AI Service Response:', aiData);
         
-        fullAiResponse = aiData; // ✅ Store the complete response
+        fullAiResponse = aiData;
         
-        // Check if training was already assigned
         if ((aiData as any).feedback_deleted || (aiData as any).skipped_ai_call) {
-          console.log('⚠️ Training already assigned - feedback deleted');
+          console.log('Training already assigned - feedback deleted');
           
-          // ✅ Return the AI response directly with all fields
           return res.status(200).json({
             success: true,
             feedback_deleted: (aiData as any).feedback_deleted,
@@ -163,7 +156,6 @@ router.post('/feedback', async (req, res) => {
           });
         }
         
-        // Normal flow - new training assigned
         aiResponse = {
           suggestion: `Training Assigned: ${(aiData as any).assigned_module}`,
           inferredGaps: (aiData as any).inferred_gaps,
@@ -174,7 +166,6 @@ router.post('/feedback', async (req, res) => {
       console.error('AI Service Unreachable - Skipping:', aiError);
     }
     
-    // ✅ Return success for new assignments
     res.status(201).json({
       success: true,
       feedback: feedbackData,
@@ -187,19 +178,14 @@ router.post('/feedback', async (req, res) => {
   }
 });
 
-
-// teacher-routes.ts - ADD THIS ROUTE
-
 // ==================== TRAINING ENDPOINTS ====================
 
-// Get all training assignments for a teacher (with joined module data)
 router.get('/training/:teacherId', async (req, res) => {
   const { teacherId } = req.params;
   
-  console.log(`🎓 Fetching training assignments for teacher: ${teacherId}`);
+  console.log(`Fetching training assignments for teacher: ${teacherId}`);
   
   try {
-    // Query teacher_training_assignments with JOIN to training_modules
     const { data: assignments, error: assignmentError } = await supabase
       .from('teacher_training_assignments')
       .select(`
@@ -213,23 +199,21 @@ router.get('/training/:teacherId', async (req, res) => {
       .order('assigned_date', { ascending: false });
 
     if (assignmentError) {
-      console.error('❌ Supabase error:', assignmentError);
+      console.error('Supabase error:', assignmentError);
       throw assignmentError;
     }
 
-    console.log(`📦 Found ${assignments?.length || 0} assignments in database`);
+    console.log(`Found ${assignments?.length || 0} assignments in database`);
 
-    // Fetch personalized content separately
     const { data: personalizedData, error: personalizedError } = await supabase
       .from('personalized_training')
       .select('module_id, personalized_content')
       .eq('teacher_id', teacherId);
 
     if (personalizedError) {
-      console.warn('⚠️ Could not fetch personalized content:', personalizedError);
+      console.warn('Could not fetch personalized content:', personalizedError);
     }
 
-    // Create a map of module_id -> personalized_content
     const personalizedMap: Record<string, string> = {};
     if (personalizedData) {
       personalizedData.forEach(p => {
@@ -237,9 +221,8 @@ router.get('/training/:teacherId', async (req, res) => {
       });
     }
 
-    console.log(`📝 Found ${Object.keys(personalizedMap).length} personalized content entries`);
+    console.log(`Found ${Object.keys(personalizedMap).length} personalized content entries`);
 
-    // Transform to frontend format
     const trainings = assignments?.map(assignment => ({
       id: assignment.id,
       teacherId: assignment.teacher_id,
@@ -266,24 +249,23 @@ router.get('/training/:teacherId', async (req, res) => {
         videoUrl: assignment.training_modules.video_url,
         articleContent: assignment.training_modules.article_content,
       } : undefined,
-      personalizedContent: personalizedMap[assignment.module_id] || null, // ✅ ADD PERSONALIZED CONTENT
+      personalizedContent: personalizedMap[assignment.module_id] || null,
     })) || [];
 
-    console.log(`✅ Sending ${trainings.length} training assignments to frontend`);
+    console.log(`Sending ${trainings.length} training assignments to frontend`);
     
     res.json({ success: true, trainings });
   } catch (error) {
-    console.error('❌ Get training error:', error);
+    console.error('Get training error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Update training progress
 router.patch('/training/:trainingId/progress', async (req, res) => {
   const { trainingId } = req.params;
   const { progress_percentage, status, started_at, completed_at } = req.body;
 
-  console.log(`📊 Updating progress for training ${trainingId}:`, { progress_percentage, status });
+  console.log(`Updating progress for training ${trainingId}:`, { progress_percentage, status });
 
   try {
     const updateData: any = { 
@@ -302,18 +284,17 @@ router.patch('/training/:trainingId/progress', async (req, res) => {
       .single();
 
     if (error) {
-      console.error('❌ Update error:', error);
+      console.error('Update error:', error);
       throw error;
     }
 
-    console.log('✅ Progress updated successfully');
+    console.log('Progress updated successfully');
 
     res.json({ success: true, training: data });
   } catch (error) {
-    console.error('❌ Update progress error:', error);
+    console.error('Update progress error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 
 export default router;

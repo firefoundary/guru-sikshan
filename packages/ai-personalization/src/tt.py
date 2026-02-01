@@ -7,26 +7,26 @@ from llm_personalizer import personalizer
 load_dotenv()
 
 def test_gemini_personalization():
-    print("🧪 Testing Gemini AI Personalization...")
+    print("Testing Gemini AI Personalization...")
     print("=" * 50)
     
     # Get teacher
     teacher = db.get_teacher_by_id('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
     if not teacher:
-        print("❌ Teacher not found")
+        print("Teacher not found")
         return False
     
-    print(f"✓ Teacher: {teacher['name']}")
+    print(f"Teacher: {teacher['name']}")
     
     # Get base module
     base_module_response = db.client.table('training_modules').select('*').eq('competency_area', 'classroom_management').limit(1).execute()
     
     if not base_module_response.data:
-        print("❌ No training module found")
+        print("No training module found")
         return False
     
     base_module = base_module_response.data[0]
-    print(f"✓ Base module: {base_module['title']}")
+    print(f"Base module: {base_module['title']}")
     
     # Teacher profile
     teacher_profile = {
@@ -44,7 +44,7 @@ def test_gemini_personalization():
         'infrastructure': 'low'
     }
     
-    print("\n🤖 Calling Gemini API...")
+    print("\nCalling Gemini API...")
     print("This may take 10-15 seconds...")
     
     try:
@@ -55,20 +55,20 @@ def test_gemini_personalization():
         )
         
         if result.get('success'):
-            print("\n✅ GEMINI PERSONALIZATION SUCCESSFUL!")
+            print("\nGEMINI PERSONALIZATION SUCCESSFUL!")
             print("=" * 50)
-            print("\n📝 Personalized Content Preview:")
+            print("\nPersonalized Content Preview:")
             print(result['personalized_content'][:500] + "...")
-            print("\n🔧 Adaptations Made:")
+            print("\nAdaptations Made:")
             for adaptation in result['adaptations_made']:
                 print(f"  • {adaptation}")
             return True
         else:
-            print(f"\n❌ Personalization failed: {result.get('error')}")
+            print(f"\nPersonalization failed: {result.get('error')}")
             return False
             
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
         import traceback
         traceback.print_exc()
         return False

@@ -176,4 +176,191 @@ router.get('/teachers', async (req, res) => {
   }
 });
 
+// ==================== TRAINING MODULES (ADMIN CRUD) ====================
+
+// Get all modules
+router.get('/modules', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('training_modules')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const modules = (data || []).map((m: any) => ({
+      id: m.id,
+      title: m.title,
+      description: m.description || '',
+      competencyArea: m.competency_area,
+      difficultyLevel: m.difficulty_level,
+      estimatedDuration: m.estimated_duration || '30-45 minutes',
+      contentType: m.content_type || 'article',
+      videoUrl: m.video_url,
+      articleContent: m.article_content,
+      fullContent: m.full_content,
+      language: m.language || 'en',
+      tags: m.tags || [],
+      prerequisites: m.prerequisites || [],
+      completionCount: m.completion_count || 0,
+      averageRating: m.average_rating || 0,
+      createdAt: m.created_at,
+      updatedAt: m.updated_at,
+      moduleSource: m.module_source || 'DIET',
+      targetClusters: m.target_clusters || [],
+      contextualMetadata: m.contextual_metadata || {},
+    }));
+
+    res.json({ success: true, modules });
+  } catch (error) {
+    console.error('Get modules error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create module
+router.post('/modules', async (req, res) => {
+  const {
+    title,
+    description,
+    competencyArea,
+    difficultyLevel,
+    targetClusters,
+    fullContent,
+    contentType,
+  } = req.body;
+
+  if (!title || !competencyArea) {
+    return res.status(400).json({ error: 'Title and competency area are required' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('training_modules')
+      .insert({
+        title,
+        description,
+        competency_area: competencyArea,
+        difficulty_level: difficultyLevel || 'beginner',
+        estimated_duration: '30-45 minutes',
+        content_type: contentType || 'article',
+        full_content: fullContent,
+        article_content: fullContent, // Copy to article_content for compatibility
+        language: 'en',
+        target_clusters: targetClusters || ['All Clusters'],
+        module_source: 'ADMIN_DASHBOARD',
+      })
+      .select('*')
+      .single();
+
+    if (error) throw error;
+
+    const module = {
+      id: data.id,
+      title: data.title,
+      description: data.description || '',
+      competencyArea: data.competency_area,
+      difficultyLevel: data.difficulty_level,
+      estimatedDuration: data.estimated_duration,
+      contentType: data.content_type,
+      fullContent: data.full_content,
+      articleContent: data.article_content,
+      targetClusters: data.target_clusters || [],
+      completionCount: 0,
+      averageRating: 0,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+      moduleSource: data.module_source,
+    };
+
+    console.log('Module created:', module.title);
+    res.status(201).json({ success: true, module });
+  } catch (error) {
+    console.error('Create module error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update module
+router.put('/modules/:id', async (req, res) => {
+  const { id } = req.params;
+  const {
+    title,
+    description,
+    competencyArea,
+    difficultyLevel,
+    targetClusters,
+    fullContent,
+    contentType,
+  } = req.body;
+
+  try {
+    const updateData: any = {
+      title,
+      description,
+      competency_area: competencyArea,
+      difficulty_level: difficultyLevel,
+      content_type: contentType,
+      full_content: fullContent,
+      article_content: fullContent, // Keep in sync
+      target_clusters: targetClusters,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('training_modules')
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+
+    const module = {
+      id: data.id,
+      title: data.title,
+      description: data.description || '',
+      competencyArea: data.competency_area,
+      difficultyLevel: data.difficulty_level,
+      estimatedDuration: data.estimated_duration,
+      contentType: data.content_type,
+      fullContent: data.full_content,
+      articleContent: data.article_content,
+      targetClusters: data.target_clusters || [],
+      completionCount: data.completion_count || 0,
+      averageRating: data.average_rating || 0,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+      moduleSource: data.module_source,
+    };
+
+    console.log('✅ Module updated:', module.title);
+    res.json({ success: true, module });
+  } catch (error) {
+    console.error('Update module error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete module
+router.delete('/modules/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const { error } = await supabase
+      .from('training_modules')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    console.log('✅ Module deleted:', id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete module error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
+

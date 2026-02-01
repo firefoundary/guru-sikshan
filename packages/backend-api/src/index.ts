@@ -2,32 +2,31 @@ import express from 'express';
 import cors from 'cors';
 import teacherRoutes from './teacher-routes.js';
 import dashboardRoutes from './dashboard-routes.js';
+import adminRoutes from './admin-routes.js'; // ADD THIS
 
 const app = express();
 
-// ✅ FIXED: Explicitly allow your Frontend ports
 app.use(cors({
   origin: [
-    'http://localhost:8080',      // Teacher App (localhost)
-    'http://127.0.0.1:8080',      // Teacher App (IPv4)
-    'http://localhost:5173',      // Dashboard (Vite default)
-    'http://127.0.0.1:5173'       // Dashboard (IPv4)
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'
   ],
-  credentials: true,              // Allow cookies/auth headers
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Mount routes
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/admin', adminRoutes); 
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, '0.0.0.0', () => {
@@ -37,4 +36,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('\nAvailable routes:');
   console.log('  Teacher App: /api/teacher/*');
   console.log('  Dashboard: /api/dashboard/*');
+  console.log('  Admin: /api/admin/*'); 
 });

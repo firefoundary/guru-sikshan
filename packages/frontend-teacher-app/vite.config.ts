@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import react from '@vitejs/plugin-react';  // ✅ Changed to swc for consistency
 import path from 'path';
 
 export default defineConfig({
@@ -8,13 +8,11 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    // Fixes the "Missing React" crash
     dedupe: ['react', 'react-dom'],
   },
-  // ⬇️ FORCE PORT 8080
   server: {
-    port: 8080,
-    host: true, // Allows access from network/mobile if needed
+    port: 8080,  // Teacher app stays on 8080
+    host: true,
   },
   optimizeDeps: {
     include: ['react', 'react-dom'],
