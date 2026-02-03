@@ -78,8 +78,8 @@ export default function Login() {
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
           <MessageSquare className="h-8 w-8 text-primary-foreground" />
         </div>
-        <h1 className="mt-4 text-2xl font-bold text-foreground">TeacherVoice</h1>
-        <p className="mt-1 text-sm text-muted-foreground">School Feedback System</p>
+        <h1 className="mt-4 text-2xl font-bold text-foreground">GuruShikshan - Teacher App</h1>
+        <p className="mt-1 text-sm text-muted-foreground">DIET Feedback System</p>
       </div>
 
       <Card className="w-full max-w-sm">

@@ -36,7 +36,7 @@ export interface Admin {
   isActive?: boolean;
 }
 
-export interface Feedback {
+export interface Issue {
   id: string;
   teacherId: string;
   teacherName?: string;
@@ -45,7 +45,7 @@ export interface Feedback {
   cluster: string;
   category: 'academic' | 'infrastructure' | 'administrative' | 'safety' | 'technology' | 'other';
   description: string;
-  status: 'pending' | 'reviewed' | 'resolved' | 'training_assigned' | 'in_review' | 'rejected';
+  status: 'pending' | 'reviewed' | 'resolved' | 'training_assigned'; 
   adminRemarks?: string;
   createdAt: string;
   updatedAt: string;
@@ -84,7 +84,7 @@ export interface TeacherTrainingAssignment {
   moduleId: string;
   assignedBy: string;
   assignedReason?: string;
-  sourceFeedbackId?: string;
+  sourceIssueId?: string;
   status: 'not_started' | 'in_progress' | 'completed' | 'skipped';
   progressPercentage: number;
   assignedDate: string;
@@ -123,7 +123,7 @@ export interface AIResponse {
 }
 
 // Legacy type alias for backward compatibility
-export interface FeedbackIssue extends Feedback {
+export interface FeedbackIssue extends Issue {
   teacherName: string;
   moduleId?: string;
   moduleName?: string;
@@ -131,8 +131,88 @@ export interface FeedbackIssue extends Feedback {
   priority?: 'low' | 'medium' | 'high';
 }
 
+export interface TrainingFeedback {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  assignmentId: string;
+  moduleId: string;
+  rating: number;
+  wasHelpful: boolean;
+  comment: string | null;
+  strengths: string[];
+  improvements: string[];
+  stillHasIssue: boolean;
+  needsAdditionalSupport: boolean;
+  createdAt: string;
+  module?: {
+    id: string;
+    title: string;
+    competencyArea: string;
+  };
+}
+
 // API Functions
 export const api = {
+  // ==================== RAG ENDPOINTS ====================
+  async getRagStats(): Promise<{ total_modules: number; total_chunks: number; vectorized: boolean }> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/rag/stats`);
+    if (!response.ok) throw new Error('Failed to fetch RAG stats');
+    const data = await response.json();
+    return data;
+  },
+
+  async uploadPdfForModule(
+    file: File,
+    moduleId: string,
+    moduleName: string,
+    competencyArea: string
+  ): Promise<{ success: boolean; message: string; chunks: number }> {
+    const formData = new FormData();
+    formData.append('pdf', file);
+    formData.append('module_id', moduleId);
+    formData.append('module_name', moduleName);
+    formData.append('competency_area', competencyArea);
+
+    const response = await fetch(`${API_BASE_URL}/api/admin/rag/upload-pdf`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to upload PDF');
+    }
+
+    return response.json();
+  },
+
+  async processAllPdfs(): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/rag/process-all-pdfs`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) throw new Error('Failed to process PDFs');
+    return response.json();
+  },
+
+  async getModulesRagStatus(): Promise<{
+    success: boolean;
+    modules: Array<{
+      id: string;
+      title: string;
+      competency: string;
+      chunkCount: number;
+      hasRAG: boolean;
+      lastUpload: string | null;
+      pdfPath: string | null;
+    }>;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/modules/rag-status`);
+    if (!response.ok) throw new Error('Failed to fetch RAG status');
+    return response.json();
+  },
+
   
   // ==================== DASHBOARD ENDPOINTS ====================
 
@@ -154,76 +234,171 @@ export const api = {
     return data.teachers;
   },
 
+  async getClusters(): Promise<string[]> {
+    const response = await fetch(`${API_BASE_URL}/api/dashboard/clusters`);
+    if (!response.ok) throw new Error('Failed to fetch clusters');
+    const data = await response.json();
+    if (!data.success) throw new Error('Failed to fetch clusters');
+    return data.clusters;
+  },
+  
+  async createTeacher(teacher: {
+    name: string;
+    email: string;
+    cluster: string;
+    employeeId: string;
+    password: string;
+  }): Promise<Teacher> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/teachers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(teacher),
+    });
+  
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to create teacher');
+    }
+  
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to create teacher');
+    }
+  
+    return data.teacher;
+  },
+  
+  async updateTeacher(id: string, updates: {
+    name?: string;
+    email?: string;
+    cluster?: string;
+    employeeId?: string;
+    password?: string;
+  }): Promise<Teacher> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/teachers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+  
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to update teacher');
+    }
+  
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to update teacher');
+    }
+  
+    return data.teacher;
+  },
+  
+  async deleteTeacher(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/teachers/${id}`, {
+      method: 'DELETE',
+    });
+  
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to delete teacher');
+    }
+  
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to delete teacher');
+    }
+  },
+
   async getTeacher(id: string): Promise<Teacher | null> {
     const teachers = await this.getTeachers();
     return teachers.find(t => t.id === id) || null;
   },
 
-  async deleteTeacher(id: string): Promise<boolean> {
-    // Note: This would need a backend endpoint to be implemented
-    console.warn('Delete teacher not implemented on backend');
-    return false;
-  },
+  // ==================== ISSUES ENDPOINTS (replaces FEEDBACK) ====================
 
-  // ==================== FEEDBACK ENDPOINTS ====================
+async getIssues(
+  status?: string,
+  cluster?: string,
+  limit = 50,
+  offset = 0
+): Promise<{ issues: Issue[]; total: number }> {
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  if (cluster) params.append('cluster', cluster);
+  params.append('limit', String(limit));
+  params.append('offset', String(offset));
 
-  async getFeedback(status?: string, cluster?: string, limit = 50, offset = 0): Promise<{ feedbacks: Feedback[]; total: number }> {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (cluster) params.append('cluster', cluster);
-    params.append('limit', String(limit));
-    params.append('offset', String(offset));
+  const response = await fetch(`${API_BASE_URL}/api/dashboard/issues/all?${params}`);
+  if (!response.ok) throw new Error('Failed to fetch issues');
+  const data = await response.json();
+  if (!data.success) throw new Error('Failed to fetch issues');
+  return { issues: data.issues, total: data.total };
+},
 
-    const response = await fetch(`${API_BASE_URL}/api/dashboard/feedback/all?${params}`);
-    if (!response.ok) throw new Error('Failed to fetch feedback');
+async getAllIssues(): Promise<Issue[]> {
+  const { issues } = await this.getIssues();
+  return issues;
+},
+
+async getIssuesByTeacher(teacherId: string): Promise<Issue[]> {
+  const response = await fetch(`${API_BASE_URL}/api/teacher/issues/teacher/${teacherId}`);
+  if (!response.ok) throw new Error('Failed to fetch issues');
+  const data = await response.json();
+  if (!data.success) throw new Error('Failed to fetch issues');
+  return data.issues;
+},
+
+async getIssueById(id: string): Promise<Issue | null> {
+  const response = await fetch(`${API_BASE_URL}/api/teacher/issues/${id}`);
+  if (!response.ok) return null;
+  const data = await response.json();
+  if (!data.success) return null;
+  return data.issue;
+},
+
+async updateIssueStatus(id: string, status: Issue['status'], adminRemarks?: string): Promise<Issue | null> {
+  const response = await fetch(`${API_BASE_URL}/api/dashboard/issues/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, adminRemarks }),
+  });
+  if (!response.ok) throw new Error('Failed to update issue status');
+  const data = await response.json();
+  if (!data.success) throw new Error('Failed to update issue status');
+  return data.issue;
+},
+
+async submitIssue(
+  teacherId: string,
+  cluster: string,
+  category: Issue['category'],
+  description: string
+): Promise<{ issue: Issue; aiResponse?: AIResponse }> {
+  const response = await fetch(`${API_BASE_URL}/api/teacher/issues`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ teacherId, cluster, category, description }),
+  });
+  if (!response.ok) throw new Error('Failed to submit issue');
+  return response.json();
+},
+
+async deleteIssue(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/dashboard/issues/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
     const data = await response.json();
-    if (!data.success) throw new Error('Failed to fetch feedback');
-    return { feedbacks: data.feedbacks, total: data.total };
-  },
+    throw new Error(data.error || 'Failed to delete issue');
+  }
 
-  async getAllFeedback(): Promise<Feedback[]> {
-    const { feedbacks } = await this.getFeedback();
-    return feedbacks;
-  },
-
-  async getFeedbackByTeacher(teacherId: string): Promise<Feedback[]> {
-    const response = await fetch(`${API_BASE_URL}/api/teacher/feedback/teacher/${teacherId}`);
-    if (!response.ok) throw new Error('Failed to fetch feedback');
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to fetch feedback');
-    return data.feedbacks;
-  },
-
-  async getFeedbackById(id: string): Promise<Feedback | null> {
-    const response = await fetch(`${API_BASE_URL}/api/teacher/feedback/${id}`);
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!data.success) return null;
-    return data.feedback;
-  },
-
-  async updateFeedbackStatus(id: string, status: string, adminRemarks?: string): Promise<Feedback | null> {
-    const response = await fetch(`${API_BASE_URL}/api/dashboard/feedback/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, adminRemarks }),
-    });
-    if (!response.ok) throw new Error('Failed to update feedback status');
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to update feedback status');
-    return data.feedback;
-  },
-
-  async submitFeedback(teacherId: string, cluster: string, category: string, description: string): Promise<{ feedback: Feedback; aiResponse?: AIResponse }> {
-    const response = await fetch(`${API_BASE_URL}/api/teacher/feedback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teacherId, cluster, category, description }),
-    });
-    if (!response.ok) throw new Error('Failed to submit feedback');
-    return response.json();
-  },
-
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to delete issue');
+  }
+},
  // ==================== TRAINING ENDPOINTS ====================
 
 async getTrainingModules(): Promise<TrainingModule[]> {
@@ -396,6 +571,30 @@ async deleteModule(id: string): Promise<void> {
     if (!response.ok) throw new Error('Failed to change password');
     const data = await response.json();
     if (!data.success) throw new Error(data.error || 'Failed to change password');
+  },
+
+  async getAllTrainingFeedback(): Promise<TrainingFeedback[]> {
+    const response = await fetch(`${API_BASE_URL}/api/dashboard/training-feedback`);
+    if (!response.ok) throw new Error('Failed to fetch training feedback');
+    const data = await response.json();
+    if (!data.success) throw new Error('Failed to fetch training feedback');
+    return data.feedbacks;
+  },
+  
+  async getTrainingFeedbackByModule(moduleId: string): Promise<TrainingFeedback[]> {
+    const response = await fetch(`${API_BASE_URL}/api/dashboard/training-feedback/module/${moduleId}`);
+    if (!response.ok) throw new Error('Failed to fetch module feedback');
+    const data = await response.json();
+    if (!data.success) throw new Error('Failed to fetch module feedback');
+    return data.feedbacks;
+  },
+  
+  async getTrainingFeedbackByTeacher(teacherId: string): Promise<TrainingFeedback[]> {
+    const response = await fetch(`${API_BASE_URL}/api/dashboard/training-feedback/teacher/${teacherId}`);
+    if (!response.ok) throw new Error('Failed to fetch teacher feedback');
+    const data = await response.json();
+    if (!data.success) throw new Error('Failed to fetch teacher feedback');
+    return data.feedbacks;
   },
 };
 

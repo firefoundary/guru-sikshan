@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Teachers from "./pages/Teachers";
 import Feedback from "./pages/Feedback";
+import Issues from "./pages/Issues";
 import UploadModules from "./pages/UploadModules";
 import NotFound from "./pages/NotFound";
 
@@ -75,11 +76,20 @@ const App = () => {
                 </ProtectedRoute>
               } 
             />
+            
             <Route 
               path="/teachers" 
               element={
                 <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <Teachers onLogout={handleLogout} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/issues" 
+              element={
+                <ProtectedRoute isAuthenticated={isAuthenticated}>
+                  <Issues onLogout={handleLogout} />
                 </ProtectedRoute>
               } 
             />

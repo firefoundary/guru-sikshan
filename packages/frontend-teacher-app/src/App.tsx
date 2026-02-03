@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { FeedbackProvider } from "@/contexts/FeedbackContext";
+import { IssueProvider } from "@/contexts/FeedbackContext"; // Changed from FeedbackProvider
 import { TrainingProvider } from "@/contexts/TrainingContext";
 
 import Login from "./pages/Login";
@@ -12,7 +12,7 @@ import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import ReportIssue from "./pages/ReportIssue";
 import History from "./pages/History";
-import FeedbackDetail from "./pages/FeedbackDetail";
+import IssueDetail from "./pages/FeedbackDetail"; // Changed from FeedbackDetail
 import Settings from "./pages/Settings";
 import Training from "./pages/Training";
 import TrainingDetail from "./pages/TrainingDetail";
@@ -20,7 +20,7 @@ import EditProfile from "./pages/EditProfile";
 import Tutorial from "./pages/Tutorial";
 import NotFound from "./pages/NotFound";
 import TrainingPlayer from './pages/TrainingPlayer';
-import TrainingFeedback from './pages/TrainingFeedback'; // ✅ Import Added
+import TrainingFeedback from './pages/TrainingFeedback';
 
 const queryClient = new QueryClient();
 
@@ -130,14 +130,23 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      
+      {/* NEW: Main issue detail route */}
       <Route
-        path="/feedback/:id"
+        path="/issues/:id"
         element={
           <ProtectedRoute>
-            <FeedbackDetail />
+            <IssueDetail />
           </ProtectedRoute>
         }
       />
+      
+      {/* BACKWARD COMPATIBILITY: Keep old /feedback/:id route redirecting to new path */}
+      <Route
+        path="/feedback/:id"
+        element={<Navigate to="/issues/:id" replace />}
+      />
+      
       <Route
         path="/settings"
         element={
@@ -213,11 +222,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <FeedbackProvider>
+          <IssueProvider> {/* Changed from FeedbackProvider */}
             <TrainingProvider>
               <AppRoutes />
             </TrainingProvider>
-          </FeedbackProvider>
+          </IssueProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

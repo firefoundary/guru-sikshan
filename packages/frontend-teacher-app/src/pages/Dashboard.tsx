@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFeedback } from '@/contexts/FeedbackContext';
-import { useTraining } from '@/contexts/TrainingContext'; // ✅ ADD THIS
+import { useIssue } from '@/contexts/FeedbackContext';
+import { useTraining } from '@/contexts/TrainingContext';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,11 +9,11 @@ import { PlusCircle, Clock, Eye, CheckCircle, MapPin } from 'lucide-react';
 
 export default function Dashboard() {
   const { teacher } = useAuth();
-  const { pendingCount, inReviewCount, resolvedCount, feedbacks } = useFeedback();
-  const { trainings } = useTraining(); // ✅ ADD THIS
+  const { pendingCount, reviewedCount, resolvedCount, issues } = useIssue();
+  const { trainings } = useTraining();
   const navigate = useNavigate();
 
-  const recentFeedbacks = feedbacks.slice(0, 3);
+  const recentIssues = issues.slice(0, 3);
 
   const stats = [
     {
@@ -24,8 +24,8 @@ export default function Dashboard() {
       bgColor: 'bg-amber-100 dark:bg-amber-900/30',
     },
     {
-      label: 'In Review',
-      count: inReviewCount,
+      label: 'Reviewed',
+      count: reviewedCount, 
       icon: Eye,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-100 dark:bg-blue-900/30',
@@ -39,22 +39,19 @@ export default function Dashboard() {
     },
   ];
 
-  // ✅ NEW: Helper function to find training from feedback
-  const getTrainingFromFeedback = (feedbackId: string) => {
-    return trainings.find(t => t.sourceFeedbackId === feedbackId);
+  const getTrainingFromIssue = (issueId: string) => {
+    return trainings.find(t => t.sourceIssueId === issueId);
   };
 
-  // ✅ NEW: Handle click - navigate to training if exists, otherwise feedback detail
-  const handleFeedbackClick = (feedbackId: string) => {
-    const training = getTrainingFromFeedback(feedbackId);
+  const handleIssueClick = (issueId: string) => {
+    const training = getTrainingFromIssue(issueId);
     if (training) {
-      navigate(`/training/${training.id}` , {
+      navigate(`/training/${training.id}`, {
         state: { from: '/dashboard' }
       });
     } else {
-      // Fallback: navigate to feedback detail if no training found
-      navigate(`/feedback/${feedbackId}`,{
-        state: {from: '/dashboard'}
+      navigate(`/issues/${issueId}`, { 
+        state: { from: '/dashboard' }
       });
     }
   };
@@ -111,29 +108,29 @@ export default function Dashboard() {
             </Button>
           </div>
 
-          {recentFeedbacks.length > 0 ? (
+          {recentIssues.length > 0 ? (
             <div className="space-y-3">
-              {recentFeedbacks.map((feedback) => (
+              {recentIssues.map((issue) => (
                 <Card 
-                  key={feedback.id}
+                  key={issue.id}
                   className="cursor-pointer hover:bg-accent transition-colors"
-                  onClick={() => handleFeedbackClick(feedback.id)} // ✅ UPDATED
+                  onClick={() => handleIssueClick(issue.id)} 
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm mb-1">
-                          {feedback.category.replace('_', ' ')} Issue
+                          {issue.category.replace('_', ' ')} Issue
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">
-                          {feedback.description}
+                          {issue.description}
                         </p>
                         <div className="text-xs text-muted-foreground mt-2">
-                          {feedback.createdAt.toLocaleDateString()}
+                          {issue.createdAt.toLocaleDateString()}
                         </div>
                       </div>
-                      {/* ✅ Show if training was assigned */}
-                      {getTrainingFromFeedback(feedback.id) && (
+                      {/* Show if training was assigned */}
+                      {getTrainingFromIssue(issue.id) && (
                         <div className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-1 rounded">
                           Training Assigned
                         </div>

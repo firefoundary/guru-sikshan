@@ -1,9 +1,9 @@
 import os
 import traceback
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../.env'))
-print(f"DEBUG: Loaded API Key starting with: {os.getenv('GEMINI_API_KEY')[:5] if os.getenv('GEMINI_API_KEY') else 'NONE'}")
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../../.env'))
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -12,120 +12,199 @@ import google.generativeai as genai
 if os.getenv('GEMINI_API_KEY'):
     genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 
-from ml_engine import analyzer
-from llm_personalizer import personalizer
-from feedback_analyzer import feedback_analyzer
 from supabase_client import db
+from llm_personalizer import personalizer
+from rag_module_matcher import rag_matcher
+
+print("\n" + "="*80)
+print("INITIALIZING AI PERSONALIZATION SERVICE")
+print("="*80)
+
+db.initialize_default_mappings()
+
+stats = rag_matcher.get_collection_stats()
+print(f"\nRAG System Status:")
+print(f"  ChromaDB modules: {stats['total_modules']}")
+print(f"  Total chunks: {stats['total_chunks']}")
+
+if stats['total_chunks'] == 0:
+    print("\n  WARNING: No training modules loaded in RAG")
+    print("  Run: python test_with_local_pdf.py to load PDFs")
 
 app = Flask(__name__)
 CORS(app)
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({'status': 'healthy', 'service': 'personalization-service'})
+    current_stats = rag_matcher.get_collection_stats()
+    return jsonify({
+        'status': 'healthy',
+        'service': 'ai-personalization',
+        'rag_modules': current_stats['total_modules'],
+        'rag_chunks': current_stats['total_chunks']
+    })
 
-@app.route('/api/analyze-feedback/<teacher_id>', methods=['POST'])
-def analyze_teacher_feedback(teacher_id):
+@app.route('/api/rag-stats', methods=['GET'])
+def rag_stats():
+    stats = rag_matcher.get_collection_stats()
+    return jsonify({
+        'success': True,
+        'stats': stats
+    })
+
+@app.route('/api/upload-training-pdf', methods=['POST'])
+def upload_training_pdf():
     try:
-        result = feedback_analyzer.analyze_teacher_feedback(teacher_id)
-        return jsonify(result)
+        if 'pdf' not in request.files:
+            return jsonify({'error': 'No PDF file provided'}), 400
+        
+        file = request.files['pdf']
+        module_id = request.form.get('module_id')
+        module_name = request.form.get('module_name')
+        competency_area = request.form.get('competency_area')
+        
+        if not all([module_id, module_name, competency_area]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        uploads_dir = Path(__file__).parent / 'uploads'
+        uploads_dir.mkdir(exist_ok=True)
+        
+        pdf_path = uploads_dir / f"{module_id}.pdf"
+        file.save(str(pdf_path))
+        
+        chunk_count = rag_matcher.process_pdf_module(
+            pdf_path=str(pdf_path),
+            module_id=module_id,
+            module_name=module_name,
+            competency_area=competency_area
+        )
+        
+        db.client.table('training_modules').update({
+            'pdf_storage_path': str(pdf_path),
+            'chunk_count': chunk_count,
+            'last_pdf_upload': 'now()'
+        }).eq('id', module_id).execute()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Processed {chunk_count} chunks',
+            'module_id': module_id,
+            'chunks': chunk_count
+        })
+    
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Upload error: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/analyze-teacher-gaps', methods=['POST'])
-def analyze_teacher_gaps():
+@app.route('/api/process-all-pdfs', methods=['POST'])
+def process_all_pdfs():
     try:
-        data = request.json
-        result = analyzer.analyze_teacher_gap(data.get('teacher_id'))
-        return jsonify(result)
+        from test_with_local_pdf import process_all_pdfs_in_folder
+        
+        success = process_all_pdfs_in_folder()
+        
+        stats = rag_matcher.get_collection_stats()
+        
+        return jsonify({
+            'success': success,
+            'message': 'Processed PDFs successfully',
+            'total_modules': stats['total_modules'],
+            'total_chunks': stats['total_chunks'],
+            'modules': stats['modules']
+        })
     except Exception as e:
+        print(f"Process all PDFs error: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/feedback-to-training', methods=['POST'])
 def feedback_to_training():
-    """Convert teacher feedback into personalized training assignment"""
     try:
-        data = request.json
+        data = request.json or {}
         teacher_id = data.get('teacher_id')
-        feedback_id = data.get('feedback_id')
         
-        if not teacher_id or not feedback_id:
-            return jsonify({'error': 'teacher_id and feedback_id required'}), 400
-
+        issue_id = data.get('issue_id')
+        
+        if not teacher_id or not issue_id:
+            return jsonify({'error': 'teacher_id and issue_id required'}), 400
+        
         print(f"\n{'='*80}")
-        print(f"🎯 FEEDBACK TO TRAINING WORKFLOW STARTED")
+        print(f"ISSUE TO TRAINING (RAG-POWERED)")
         print(f"{'='*80}")
         
-        feedback_analysis = feedback_analyzer.analyze_teacher_feedback(teacher_id)
-        inferred_gaps = feedback_analysis.get('inferred_gaps', [])
-        gap_scores = feedback_analysis.get('gap_scores', {})
+        issue = db.get_issue_by_id(issue_id)
+        if not issue:
+            return jsonify({'error': 'Issue not found'}), 404
         
-      
-        print(f"\n🔍 SELECTING COMPETENCY GAP:")
-        print(f"{'-'*80}")
+        issue_text = issue['description']
+        print(f"Issue: \"{issue_text[:100]}...\"")
         
-        if not inferred_gaps and gap_scores:
-            highest_gap = max(gap_scores.items(), key=lambda x: x[1])
+        rag_result = rag_matcher.find_best_module_for_feedback(
+            feedback_text=issue_text,
+            top_k=5
+        )
+        
+        if 'error' in rag_result:
+            print(f"RAG failed, using simple keyword fallback")
             
-            if highest_gap[1] >= 0.5:  
-                inferred_gaps = [highest_gap[0]]
-                print(f"✅ Using highest scoring gap: {highest_gap[0]} (score: {highest_gap[1]:.2f})")
-            else:
-                print(f"⚠️ All scores too low, defaulting to classroom_management")
-                inferred_gaps = ['classroom_management']
-        elif inferred_gaps:
-            print(f"✅ Gaps detected: {', '.join(inferred_gaps)}")
-        else:
-            print(f"⚠️ No gaps detected, defaulting to classroom_management")
-            inferred_gaps = ['classroom_management']
-
-        selected_competency = inferred_gaps[0]
-        print(f"🎯 SELECTED COMPETENCY: {selected_competency}")
-        print(f"{'-'*80}")
-
-        teacher = db.get_teacher_by_id(teacher_id)
-        if not teacher:
-            return jsonify({'error': 'Teacher not found'}), 404
-
-        cluster_id = teacher.get('cluster_id') or teacher.get('cluster')
-        cluster_context = {
-            'location': 'Rural India',
-            'common_issues': 'general challenges',
-            'language': 'Hindi'
-        }
-
-        try:
+            issue_lower = issue_text.lower()
+            competency_keywords = {
+                'classroom_management': ['disruptive', 'behavior', 'discipline', 'noise', 'talking', 'control'],
+                'pedagogy': ['teaching', 'explain', 'understand', 'learning', 'method'],
+                'content_knowledge': ['subject', 'topic', 'curriculum', 'content', 'knowledge'],
+                'technology_usage': ['computer', 'digital', 'technology', 'online', 'software'],
+                'student_engagement': ['engagement', 'participation', 'interest', 'motivation', 'attention']
+            }
+            
+            scores = {}
+            for comp, keywords in competency_keywords.items():
+                scores[comp] = sum(1 for kw in keywords if kw in issue_lower)
+            
+            selected_competency = max(scores.items(), key=lambda x: x[1])[0] if max(scores.values()) > 0 else 'classroom_management'
+            confidence = 0.5
+            
             module_response = db.client.table('training_modules')\
                 .select('*')\
                 .eq('competency_area', selected_competency)\
                 .limit(1)\
                 .execute()
             
-            if module_response.data:
-                base_module = module_response.data[0]
-                print(f"Found module: {base_module['title']}")
-            else:
-                print(f"⚠️ No module found for {selected_competency}, creating default...")
-                default_module = {
-                    'title': f'{selected_competency.replace("_", " ").title()} Training',
-                    'description': f'Personalized training for {selected_competency}',
-                    'competency_area': selected_competency,
-                    'content_type': 'article',
-                    'estimated_duration': '10-15 minutes'
-                }
-                
-                created = db.client.table('training_modules').insert(default_module).execute()
-                base_module = created.data[0]
-                
-        except Exception as e:
-            print(f"Module fetch error: {e}")
-            return jsonify({'error': 'Could not find training module'}), 500
-
-        print(f"\nChecking for existing training on competency: {selected_competency}")
+            if not module_response.data:
+                return jsonify({'error': 'No training module found'}), 500
+            
+            base_module = module_response.data[0]
+            relevant_chunks = []
+            method = 'keyword_fallback'
+        else:
+            module_id = rag_result['module_id']
+            selected_competency = rag_result['competency_area']
+            confidence = rag_result['confidence_score']
+            relevant_chunks = rag_result['relevant_chunks']
+            
+            module_response = db.client.table('training_modules')\
+                .select('*')\
+                .eq('id', module_id)\
+                .single()\
+                .execute()
+            
+            if not module_response.data:
+                return jsonify({'error': 'Module not found'}), 500
+            
+            base_module = module_response.data
+            method = 'rag_semantic'
+        
+        print(f"Module: {base_module['title']}")
+        print(f"Competency: {selected_competency}")
+        print(f"Confidence: {confidence:.2f}")
+        print(f"Method: {method}")
+        
+        teacher = db.get_teacher_by_id(teacher_id)
+        if not teacher:
+            return jsonify({'error': 'Teacher not found'}), 404
         
         existing_check = db.client.table('teacher_training_assignments')\
-            .select('id, status, progress_percentage, module_id, completed_at')\
+            .select('id, status, module_id')\
             .eq('teacher_id', teacher_id)\
             .execute()
         
@@ -142,190 +221,146 @@ def feedback_to_training():
                     existing_for_competency = assignment
                     break
         
-        if existing_for_competency:
+        if existing_for_competency and existing_for_competency['status'] in ['completed', 'in_progress']:
             status = existing_for_competency['status']
-            assignment_id = existing_for_competency['id']
+            print(f"Training already {status}, deleting issue")
             
-            print(f"Training already exists for {selected_competency}")
-            print(f"   Assignment ID: {assignment_id}")
-            print(f"   Status: {status}")
-            print(f"   Progress: {existing_for_competency['progress_percentage']}%")
+            try:
+                db.client.table('issues').delete().eq('id', issue_id).execute()
+            except:
+                pass
             
-            if status == 'completed':
-                print(f"Training already COMPLETED - not creating duplicate")
-                print(f"🗑️ Deleting redundant feedback {feedback_id}")
-                
-                try:
-                    db.client.table('feedback').delete().eq('id', feedback_id).execute()
-                    print(f"Feedback deleted")
-                except Exception as e:
-                    print(f"Failed to delete feedback: {e}")
-                
-                return jsonify({
-                    'success': True,
-                    'message': f'You have already completed training for {selected_competency}',
-                    'skipped_ai_call': True,
-                    'feedback_deleted': True,
-                    'reason': 'Training already completed for this competency'
-                })
+            return jsonify({
+                'success': True,
+                'message': f'Training already {status} for {selected_competency}',
+                'skipped_ai_call': True,
+                'issue_deleted': True,
+                'reason': f'Training {status}'
+            })
             
-            elif status == 'in_progress':
-                print(f"Training already IN PROGRESS - not creating duplicate")
-                print(f"Deleting redundant feedback {feedback_id}")
-                
-                try:
-                    db.client.table('feedback').delete().eq('id', feedback_id).execute()
-                    print(f"Feedback deleted")
-                except Exception as e:
-                    print(f"Failed to delete feedback: {e}")
-                
-                return jsonify({
-                    'success': True,
-                    'message': f'You already have in-progress training for {selected_competency}',
-                    'skipped_ai_call': True,
-                    'feedback_deleted': True,
-                    'reason': 'Training already in progress for this competency'
-                })
-            
-            elif status == 'not_started':
-                print(f"Training exists but NOT STARTED - will update with new feedback")
-              
-        print(f"\nCalling Gemini API to generate personalized content...")
+        print(f"Generating personalized content...")
         try:
             teacher_profile = {
-                'name': teacher.get('name'),
+                'name': teacher.get('name', 'Teacher'),
                 'subject': 'General',
                 'experience': 5,
-                'gap_areas': inferred_gaps
+                'gap_areas': [selected_competency]
             }
             
+            cluster_context = {
+                'location': teacher.get('cluster', 'Rural India'),
+                'common_issues': issue_text[:200],
+                'language': 'Hindi',
+                'infrastructure': 'Basic',
+                'class_size': '40-50 students',
+                'dialect': 'Regional'
+            }
+            
+            # ✅ UPDATED: Pass RAG chunks directly to personalizer
             personalization_result = personalizer.personalize_training_module(
                 base_module,
                 teacher_profile,
-                cluster_context
+                cluster_context,
+                rag_chunks=relevant_chunks  # ✅ Pass the chunks here
             )
             
             personalized_content = personalization_result.get('personalized_content')
             adaptation_metadata = personalization_result.get('adaptations_made', {})
-            print(f"AI content generated successfully")
+            adaptation_metadata['rag_confidence'] = confidence
+            adaptation_metadata['rag_chunks_used'] = len(relevant_chunks)
+            adaptation_metadata['matching_method'] = method
             
+            print(f"✅ Personalized content generated using {len(relevant_chunks)} RAG chunks")
         except Exception as e:
-            print(f"AI Error: {e} - using fallback content")
+            print(f"Personalization error: {e}")
             personalized_content = base_module.get('description', 'Training content')
-            adaptation_metadata = {}
-
-        try:
-            if existing_for_competency and existing_for_competency['status'] == 'not_started':
-                assignment_id = existing_for_competency['id']
-                
-                print(f"Updating existing not_started assignment...")
-                db.client.table('teacher_training_assignments')\
-                    .update({
-                        'source_feedback_id': feedback_id,
-                        'assigned_reason': f"Updated: {', '.join(inferred_gaps)} (from recent feedback)",
-                        'assigned_date': 'now()' 
-                    })\
-                    .eq('id', assignment_id)\
-                    .execute()
-                
-                print(f"Updated assignment {assignment_id}")
-                existing_content = db.client.table('personalized_training')\
-                    .select('id')\
-                    .eq('teacher_id', teacher_id)\
-                    .eq('module_id', base_module['id'])\
-                    .execute()
-                
-                if existing_content.data:
-                    db.client.table('personalized_training')\
-                        .update({
-                            'personalized_content': personalized_content,
-                            'adaptation_metadata': adaptation_metadata,
-                            'feedback_id': feedback_id
-                        })\
-                        .eq('teacher_id', teacher_id)\
-                        .eq('module_id', base_module['id'])\
-                        .execute()
-                    print(f"Updated personalized content")
-                else:
-                    db.client.table('personalized_training')\
-                        .insert({
-                            'teacher_id': teacher_id,
-                            'module_id': base_module['id'],
-                            'personalized_content': personalized_content,
-                            'adaptation_metadata': adaptation_metadata,
-                            'feedback_id': feedback_id
-                        })\
-                        .execute()
-                    print(f"Created personalized content")
-                
-                already_existed = True
-                
-            else:
-                print(f"Creating NEW training assignment for {selected_competency}...")
-                
-                assignment_payload = {
-                    "teacher_id": teacher_id,
-                    "module_id": base_module['id'],
-                    "assigned_by": "ai",
-                    "assigned_reason": f"Based on feedback analysis: {selected_competency} (score: {gap_scores.get(selected_competency, 0):.2f})",
-                    "source_feedback_id": feedback_id,
-                    "status": "not_started",
-                    "progress_percentage": 0
-                }
-                
-                assignment_result = db.client.table('teacher_training_assignments')\
-                    .insert(assignment_payload)\
-                    .execute()
-                
-                assignment_id = assignment_result.data[0]['id']
-                print(f"Created new assignment: {assignment_id}")
-                
-                personalized_payload = {
-                    "teacher_id": teacher_id,
-                    "module_id": base_module['id'],
-                    "personalized_content": personalized_content,
-                    "adaptation_metadata": adaptation_metadata,
-                    "feedback_id": feedback_id
-                }
-                
-                db.client.table('personalized_training').insert(personalized_payload).execute()
-                print(f"Created personalized content")
-                
-                already_existed = False
-                
-        except Exception as e:
-            print(f"Database save error: {e}")
-            traceback.print_exc()
-            return jsonify({'error': f'Failed to save training: {str(e)}'}), 500
-
-        try:
-            db.client.table('feedback').update({
-                'status': 'training_assigned'
-            }).eq('id', feedback_id).execute()
-            print(f"Updated feedback status to 'training_assigned'")
-        except Exception as e:
-            print(f"Feedback update error: {e}")
+            adaptation_metadata = {'error': str(e)}
         
-        print(f"\n{'='*80}")
-        print(f"FEEDBACK TO TRAINING COMPLETE")
+        if existing_for_competency and existing_for_competency['status'] == 'not_started':
+            assignment_id = existing_for_competency['id']
+            
+            db.client.table('teacher_training_assignments')\
+                .update({
+                    'source_issue_id': issue_id,
+                    'assigned_reason': f"{method}: {selected_competency} (conf: {confidence:.2f})",
+                    'rag_confidence': confidence
+                })\
+                .eq('id', assignment_id)\
+                .execute()
+            
+            already_existed = True
+        else:
+            assignment_payload = {
+                "teacher_id": teacher_id,
+                "module_id": base_module['id'],
+                "assigned_by": "ai_rag",
+                "assigned_reason": f"{method}: {selected_competency} (confidence: {confidence:.2f})",
+                "source_issue_id": issue_id,
+                "status": "not_started",
+                "progress_percentage": 0,
+                "rag_confidence": confidence
+            }
+            
+            db.client.table('teacher_training_assignments')\
+                .insert(assignment_payload)\
+                .execute()
+            
+            already_existed = False
+        
+        existing_content = db.client.table('personalized_training')\
+            .select('id')\
+            .eq('teacher_id', teacher_id)\
+            .eq('module_id', base_module['id'])\
+            .execute()
+        
+        if existing_content.data:
+            db.client.table('personalized_training')\
+                .update({
+                    'personalized_content': personalized_content,
+                    'adaptation_metadata': adaptation_metadata,
+                    'issue_id': issue_id
+                })\
+                .eq('teacher_id', teacher_id)\
+                .eq('module_id', base_module['id'])\
+                .execute()
+        else:
+            db.client.table('personalized_training')\
+                .insert({
+                    'teacher_id': teacher_id,
+                    'module_id': base_module['id'],
+                    'personalized_content': personalized_content,
+                    'adaptation_metadata': adaptation_metadata,
+                    'issue_id': issue_id
+                })\
+                .execute()
+        
+        db.client.table('issues').update({
+            'status': 'training_assigned'
+        }).eq('id', issue_id).execute()
+        
+        print(f"{'='*80}")
+        print(f"SUCCESS")
         print(f"{'='*80}\n")
         
         return jsonify({
             'success': True,
             'assigned_module': base_module['title'],
             'competency': selected_competency,
-            'competency_score': gap_scores.get(selected_competency, 0),
-            'personalized_message': personalized_content[:200] + '...',
+            'competency_confidence': confidence,
+            'matching_method': method,
+            'personalized_message': (personalized_content or '')[:200] + '...',
             'already_existed': already_existed,
-            'feedback_deleted': False
+            'issue_deleted': False,
+            'rag_enabled': True
         })
         
     except Exception as e:
-        print(f"UNEXPECTED ERROR: {e}")
+        print(f"ERROR: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.getenv('FLASK_PORT', 5001))
-    print(f"\nPersonalization Service Starting on port {port}...\n")
+    print(f"\nAI Personalization Service starting on port {port}")
+    print(f"RAG System: {'ACTIVE' if stats['total_chunks'] > 0 else 'INACTIVE'}\n")
     app.run(host='0.0.0.0', port=port, debug=True)

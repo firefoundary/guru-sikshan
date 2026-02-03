@@ -5,19 +5,23 @@ const router = Router();
 
 // ==================== DASHBOARD ENDPOINTS ====================
 
-// Get all feedback (for admin dashboard)
-router.get('/feedback/all', async (req, res) => {
+// Get all issues (for admin dashboard)
+router.get('/issues/all', async (req, res) => {
   const { status, cluster, limit = 50, offset = 0 } = req.query;
 
   try {
     let query = supabase
-      .from('feedback')
+      .from('issues')
       .select('*, teachers!inner(name, email, employee_id)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
-    if (status) {
-      query = query.eq('status', status);
+    // Accept legacy status alias "in_review" -> actual "reviewed"
+    const normalizedStatus =
+      status === 'in_review' ? 'reviewed' : (status as string | undefined);
+
+    if (normalizedStatus) {
+      query = query.eq('status', normalizedStatus);
     }
 
     if (cluster) {
@@ -26,11 +30,9 @@ router.get('/feedback/all', async (req, res) => {
 
     const { data, error, count } = await query;
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    const feedbacks = data.map(item => ({
+    const issues = (data || []).map((item: any) => ({
       id: item.id,
       teacherId: item.teacher_id,
       teacherName: item.teachers.name,
@@ -47,29 +49,36 @@ router.get('/feedback/all', async (req, res) => {
 
     res.json({
       success: true,
-      feedbacks,
+      issues,
       total: count,
       limit: Number(limit),
       offset: Number(offset),
     });
   } catch (error) {
-    console.error('Get all feedback error:', error);
+    console.error('Get all issues error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Update feedback status (admin action)
-router.patch('/feedback/:id/status', async (req, res) => {
+// Update issue status (admin action)
+router.patch('/issues/:id/status', async (req, res) => {
   const { id } = req.params;
-  const { status, adminRemarks } = req.body;
+  const { status, adminRemarks } = req.body as { status?: string; adminRemarks?: string };
 
-  if (!status || !['pending', 'in_review', 'resolved', 'rejected'].includes(status)) {
+  // Normalize legacy -> new enum
+  const normalizedStatus =
+    status === 'in_review' ? 'reviewed' : status;
+
+  // Match your DB constraint: pending | reviewed | resolved | training_assigned
+  const allowed = ['pending', 'reviewed', 'resolved', 'training_assigned'] as const;
+
+  if (!normalizedStatus || !allowed.includes(normalizedStatus as any)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
 
   try {
     const updateData: any = {
-      status,
+      status: normalizedStatus,
       updated_at: new Date().toISOString(),
     };
 
@@ -78,19 +87,17 @@ router.patch('/feedback/:id/status', async (req, res) => {
     }
 
     const { data, error } = await supabase
-      .from('feedback')
+      .from('issues')
       .update(updateData)
       .eq('id', id)
       .select()
       .single();
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     res.json({
       success: true,
-      feedback: {
+      issue: {
         id: data.id,
         teacherId: data.teacher_id,
         cluster: data.cluster,
@@ -103,40 +110,125 @@ router.patch('/feedback/:id/status', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Update feedback status error:', error);
+    console.error('Update issue status error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete issue (admin only - for resolved items)
+// This version preserves training assignments but removes issue link
+router.delete('/issues/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // First, check if the issue exists and is resolved
+    const { data: issue, error: fetchError } = await supabase
+      .from('issues')
+      .select('status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !issue) {
+      return res.status(404).json({
+        success: false,
+        error: 'Issue not found',
+      });
+    }
+
+    // Only allow deletion of resolved issues
+    if (issue.status !== 'resolved') {
+      return res.status(400).json({
+        success: false,
+        error: 'Only resolved issues can be deleted',
+      });
+    }
+
+    console.log(`🗑️ Deleting issue ${id} and related records...`);
+
+    // Strategy:
+    // 1. Delete AI responses
+    // 2. Keep personalized_training and teacher_training_assignments
+    // 3. Remove issue_id references from those tables
+    // 4. Delete the issue
+
+    // 1. Delete from ai_responses (renamed column: issue_id)
+    const { error: aiError } = await supabase
+      .from('ai_responses')
+      .delete()
+      .eq('issue_id', id);
+
+    if (!aiError) console.log('  ✓ Deleted related ai_responses');
+
+    // 2. Remove issue_id reference from personalized_training (renamed column: issue_id)
+    const { error: trainingUpdateError } = await supabase
+      .from('personalized_training')
+      .update({ issue_id: null })
+      .eq('issue_id', id);
+
+    if (!trainingUpdateError) console.log('  ✓ Unlinked personalized_training from issue');
+
+    // 3. Remove source_issue_id reference from teacher_training_assignments (renamed column: source_issue_id)
+    const { error: assignmentUpdateError } = await supabase
+      .from('teacher_training_assignments')
+      .update({ source_issue_id: null })
+      .eq('source_issue_id', id);
+
+    if (!assignmentUpdateError) console.log('  ✓ Unlinked teacher_training_assignments from issue');
+
+    // 4. Finally, delete the issue itself
+    const { error: issueError } = await supabase
+      .from('issues')
+      .delete()
+      .eq('id', id);
+
+    if (issueError) throw issueError;
+
+    console.log('✅ Issue deleted successfully (training preserved)');
+    res.json({
+      success: true,
+      message: 'Issue deleted successfully. Related training records have been preserved.',
+    });
+  } catch (error) {
+    console.error('❌ Delete issue error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 });
 
 // Get dashboard statistics
 router.get('/stats', async (req, res) => {
   try {
-    const { data: allFeedback, error } = await supabase
-      .from('feedback')
+    const { data: allIssues, error } = await supabase
+      .from('issues')
       .select('status, category, cluster');
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
+    // Keep legacy response keys if your frontend still expects them:
+    // inReview == reviewed, rejected == 0 (since DB enum no longer has rejected)
     const stats = {
-      total: allFeedback.length,
+      total: allIssues.length,
       byStatus: {
-        pending: allFeedback.filter(f => f.status === 'pending').length,
-        inReview: allFeedback.filter(f => f.status === 'in_review').length,
-        resolved: allFeedback.filter(f => f.status === 'resolved').length,
-        rejected: allFeedback.filter(f => f.status === 'rejected').length,
+        pending: allIssues.filter(i => i.status === 'pending').length,
+        inReview: allIssues.filter(i => i.status === 'reviewed').length,
+        resolved: allIssues.filter(i => i.status === 'resolved').length,
+        rejected: 0,
+        // If/when your frontend supports it, you can also expose:
+        // trainingAssigned: allIssues.filter(i => i.status === 'training_assigned').length,
       },
       byCategory: {
-        academic: allFeedback.filter(f => f.category === 'academic').length,
-        infrastructure: allFeedback.filter(f => f.category === 'infrastructure').length,
-        administrative: allFeedback.filter(f => f.category === 'administrative').length,
-        safety: allFeedback.filter(f => f.category === 'safety').length,
-        technology: allFeedback.filter(f => f.category === 'technology').length,
-        other: allFeedback.filter(f => f.category === 'other').length,
+        academic: allIssues.filter(i => i.category === 'academic').length,
+        infrastructure: allIssues.filter(i => i.category === 'infrastructure').length,
+        administrative: allIssues.filter(i => i.category === 'administrative').length,
+        safety: allIssues.filter(i => i.category === 'safety').length,
+        technology: allIssues.filter(i => i.category === 'technology').length,
+        other: allIssues.filter(i => i.category === 'other').length,
       },
-      byClusters: allFeedback.reduce((acc, f) => {
-        acc[f.cluster] = (acc[f.cluster] || 0) + 1;
+      byClusters: allIssues.reduce((acc, i) => {
+        acc[i.cluster] = (acc[i.cluster] || 0) + 1;
         return acc;
       }, {} as Record<string, number>),
     };
@@ -156,9 +248,7 @@ router.get('/teachers', async (req, res) => {
       .select('id, name, email, cluster, employee_id, created_at')
       .order('name');
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const teachers = data.map(t => ({
       id: t.id,
@@ -172,6 +262,28 @@ router.get('/teachers', async (req, res) => {
     res.json({ success: true, teachers });
   } catch (error) {
     console.error('Get teachers error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/clusters', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('teachers')
+      .select('cluster')
+      .order('cluster');
+
+    if (error) throw error;
+
+    const uniqueClusters = [...new Set(data.map(t => t.cluster))];
+
+    res.json({
+      success: true,
+      clusters: uniqueClusters,
+      count: uniqueClusters.length,
+    });
+  } catch (error) {
+    console.error('Get clusters error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -245,7 +357,7 @@ router.post('/modules', async (req, res) => {
         estimated_duration: '30-45 minutes',
         content_type: contentType || 'article',
         full_content: fullContent,
-        article_content: fullContent, // Copy to article_content for compatibility
+        article_content: fullContent,
         language: 'en',
         target_clusters: targetClusters || ['All Clusters'],
         module_source: 'ADMIN_DASHBOARD',
@@ -302,7 +414,7 @@ router.put('/modules/:id', async (req, res) => {
       difficulty_level: difficultyLevel,
       content_type: contentType,
       full_content: fullContent,
-      article_content: fullContent, // Keep in sync
+      article_content: fullContent,
       target_clusters: targetClusters,
       updated_at: new Date().toISOString(),
     };
@@ -345,7 +457,7 @@ router.put('/modules/:id', async (req, res) => {
 // Delete module
 router.delete('/modules/:id', async (req, res) => {
   const { id } = req.params;
-  
+
   try {
     const { error } = await supabase
       .from('training_modules')
@@ -362,5 +474,133 @@ router.delete('/modules/:id', async (req, res) => {
   }
 });
 
-export default router;
+// ==================== TRAINING FEEDBACK ENDPOINTS (ADMIN) ====================
 
+// Get all training feedback (admin view)
+router.get('/training-feedback', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('training_feedback')
+      .select(`
+        *,
+        training_modules (
+          id, title, competency_area, difficulty_level
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const feedbacks = (data || []).map((item: any) => ({
+      id: item.id,
+      teacherId: item.teacher_id,
+      teacherName: item.teacher_name,
+      assignmentId: item.assignment_id,
+      moduleId: item.module_id,
+      rating: item.rating,
+      wasHelpful: item.was_helpful,
+      comment: item.comment,
+      strengths: item.strengths || [],
+      improvements: item.improvements || [],
+      stillHasIssue: item.still_has_issue,
+      needsAdditionalSupport: item.needs_additional_support,
+      createdAt: item.created_at,
+      module: item.training_modules ? {
+        id: item.training_modules.id,
+        title: item.training_modules.title,
+        competencyArea: item.training_modules.competency_area,
+        difficultyLevel: item.training_modules.difficulty_level
+      } : null
+    }));
+
+    res.json({ success: true, feedbacks });
+  } catch (error) {
+    console.error('Get training feedback error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Get training feedback for a specific module
+router.get('/training-feedback/module/:moduleId', async (req, res) => {
+  const { moduleId } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('training_feedback')
+      .select('*')
+      .eq('module_id', moduleId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const feedbacks = (data || []).map((item: any) => ({
+      id: item.id,
+      teacherId: item.teacher_id,
+      teacherName: item.teacher_name,
+      assignmentId: item.assignment_id,
+      moduleId: item.module_id,
+      rating: item.rating,
+      wasHelpful: item.was_helpful,
+      comment: item.comment,
+      strengths: item.strengths || [],
+      improvements: item.improvements || [],
+      stillHasIssue: item.still_has_issue,
+      needsAdditionalSupport: item.needs_additional_support,
+      createdAt: item.created_at
+    }));
+
+    res.json({ success: true, feedbacks });
+  } catch (error) {
+    console.error('Get module feedback error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Get training feedback by teacher (admin view)
+router.get('/training-feedback/teacher/:teacherId', async (req, res) => {
+  const { teacherId } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('training_feedback')
+      .select(`
+        *,
+        training_modules (
+          id, title, competency_area
+        )
+      `)
+      .eq('teacher_id', teacherId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const feedbacks = (data || []).map((item: any) => ({
+      id: item.id,
+      teacherId: item.teacher_id,
+      teacherName: item.teacher_name,
+      assignmentId: item.assignment_id,
+      moduleId: item.module_id,
+      rating: item.rating,
+      wasHelpful: item.was_helpful,
+      comment: item.comment,
+      strengths: item.strengths || [],
+      improvements: item.improvements || [],
+      stillHasIssue: item.still_has_issue,
+      needsAdditionalSupport: item.needs_additional_support,
+      createdAt: item.created_at,
+      module: item.training_modules ? {
+        id: item.training_modules.id,
+        title: item.training_modules.title,
+        competencyArea: item.training_modules.competency_area
+      } : null
+    }));
+
+    res.json({ success: true, feedbacks });
+  } catch (error) {
+    console.error('Get teacher training feedback error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+
+export default router;

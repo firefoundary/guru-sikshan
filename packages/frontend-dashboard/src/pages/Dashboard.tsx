@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { StatCard } from '@/components/StatCard';
 import { IssueTable } from '@/components/IssueTable';
-import { api, type DashboardStats, type Feedback } from '@/services/api';
+import { api, type DashboardStats, type Issue } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 
 interface DashboardProps {
@@ -13,7 +13,7 @@ interface DashboardProps {
 
 export function Dashboard({ onLogout }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentIssues, setRecentIssues] = useState<Feedback[]>([]);
+  const [recentIssues, setRecentIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,10 +21,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
       try {
         const [statsData, feedbackResult] = await Promise.all([
           api.getDashboardStats(),
-          api.getFeedback(undefined, undefined, 3, 0), // ✅ Use getFeedbackPage
+          api.getIssues(undefined, undefined, 3, 0), 
         ]);
         setStats(statsData);
-        setRecentIssues(feedbackResult.feedbacks); // ✅ Extract feedbacks
+        setRecentIssues(feedbackResult.issues); 
       } catch (error) {
         toast({
           title: 'Error',
@@ -39,9 +39,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }, []);
   
 
-  const handleStatusChange = async (id: string, status: Feedback['status']) => {
+  const handleStatusChange = async (id: string, status: Issue['status']) => {
     try {
-      await api.updateFeedbackStatus(id, status);
+      await api.updateIssueStatus(id, status);
       setRecentIssues(prev => 
         prev.map(issue => 
           issue.id === id ? { ...issue, status } : issue
@@ -91,7 +91,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <StatCard
               title="Total Feedback"
               value={stats?.total.toLocaleString() || '0'}
-              trend={0}
               icon={Users}
               iconColor="text-primary"
               iconBgColor="bg-primary/10"
@@ -99,7 +98,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <StatCard
               title="Pending Issues"
               value={displayStats.openIssues}
-              trend={0}
               icon={BookOpen}
               iconColor="text-warning"
               iconBgColor="bg-warning/10"
@@ -107,7 +105,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <StatCard
               title="In Review"
               value={stats?.byStatus.inReview || 0}
-              trend={0}
               icon={MessageSquare}
               iconColor="text-primary"
               iconBgColor="bg-primary/10"
@@ -115,7 +112,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <StatCard
               title="Resolved"
               value={stats?.byStatus.resolved || 0}
-              trend={0}
               icon={TrendingUp}
               iconColor="text-success"
               iconBgColor="bg-success/10"

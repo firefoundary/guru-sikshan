@@ -19,26 +19,6 @@ export function Topbar({ title, subtitle }: TopbarProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-4">
-          {/* Search */}
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="input-field pl-10 w-64"
-              aria-label="Search"
-            />
-          </div>
-
-          {/* Notifications */}
-          <button 
-            className="relative p-2 rounded-lg hover:bg-accent transition-colors"
-            aria-label="Notifications"
-          >
-            <Bell size={20} className="text-muted-foreground" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-          </button>
-
           {/* User Menu */}
           <div className="flex items-center gap-3 pl-4 border-l border-border">
             <div className="hidden sm:block text-right">

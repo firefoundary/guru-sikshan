@@ -10,6 +10,7 @@ import {
   ChevronRight,
   LogOut
 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -19,6 +20,7 @@ const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/teachers', icon: Users, label: 'Teachers' },
   { path: '/feedback', icon: MessageSquare, label: 'Feedback' },
+  { path: '/issues', icon: AlertCircle, label: 'Issues' },
   { path: '/modules', icon: BookOpen, label: 'Modules' },
   { path: '/admins', icon: Shield, label: 'Admins' }, // ✅ Added Admins page
 ];

@@ -19,32 +19,35 @@ class CompetencyAnalyzer:
         print(f"ANALYZING COMPETENCY GAPS FOR TEACHER: {teacher_id}")
         print(f"{'='*80}")
         
-        # Fetch teacher's latest assessment
-        assessment = db.get_teacher_assessments(teacher_id)
+        # Lazy import to avoid circular dependency
+        from feedback_analyzer import feedback_analyzer
         
-        if not assessment:
-            print(f"ERROR: No assessment data found for teacher {teacher_id}")
+        # Generate assessment from feedback
+        assessment_scores = feedback_analyzer.create_assessment_from_feedback(teacher_id)
+        
+        if not assessment_scores:
+            print(f"ERROR: Could not generate assessment data for teacher {teacher_id}")
             return {
                 'teacher_id': teacher_id,
-                'error': 'No assessment data found',
+                'error': 'Could not generate assessment data',
                 'gap_areas': [],
                 'priority': 'unknown',
                 'recommended_modules': []
             }
         
         # Extract competency scores
-        features = self._extract_features(assessment)
+        features = self._extract_features(assessment_scores)
         
         # Display all competency scores
         print(f"\nCOMPETENCY SCORES (Scale: 0-10, Gap threshold: < 5)")
         print(f"{'-'*80}")
         
         competency_map = {
-            'classroom_management': assessment.get('classroom_management_score', 0),
-            'content_knowledge': assessment.get('content_knowledge_score', 0),
-            'pedagogy': assessment.get('pedagogy_score', 0),
-            'technology_usage': assessment.get('technology_usage_score', 0),
-            'student_engagement': assessment.get('student_engagement_score', 0)
+            'classroom_management': assessment_scores.get('classroom_management', 5),
+            'content_knowledge': assessment_scores.get('content_knowledge', 5),
+            'pedagogy': assessment_scores.get('pedagogy', 5),
+            'technology_usage': assessment_scores.get('technology_usage', 5),
+            'student_engagement': assessment_scores.get('student_engagement', 5)
         }
         
         # Identify weak areas with visual indicators
@@ -53,16 +56,16 @@ class CompetencyAnalyzer:
         for competency, score in competency_map.items():
             # Visual indicator based on score
             if score < 3:
-                indicator = "CRITICAL"
+                indicator = "🔴 CRITICAL"
                 status = "GAP"
             elif score < 5:
-                indicator = "LOW"
+                indicator = "🟠 LOW"
                 status = "GAP"
             elif score < 7:
-                indicator = "OK"
+                indicator = "🟡 OK"
                 status = "OK"
             else:
-                indicator = "STRONG"
+                indicator = "🟢 STRONG"
                 status = "OK"
             
             # Format competency name
@@ -90,13 +93,13 @@ class CompetencyAnalyzer:
         # Determine priority based on number of gaps
         if len(gap_areas) >= 3:
             priority = 'high'
-            priority_icon = ""
+            priority_icon = "🔴"
         elif len(gap_areas) == 2:
             priority = 'medium'
-            priority_icon = ""
+            priority_icon = "🟡"
         else:
             priority = 'low'
-            priority_icon = ""
+            priority_icon = "🟢"
         
         print(f"\n{priority_icon} PRIORITY LEVEL: {priority.upper()}")
         
@@ -116,13 +119,9 @@ class CompetencyAnalyzer:
             'gap_areas': gap_areas,
             'priority': priority,
             'recommended_modules': recommended_modules,
-            'scores': competency_map
+            'scores': competency_map,
+            'assessment_source': 'feedback_derived'
         }
-        
-        # Save to Supabase
-        print(f"\nSaving gap analysis to database...")
-        db.save_gap_analysis(teacher_id, result)
-        print(f"Analysis saved successfully!")
         
         print(f"{'='*80}\n")
         
@@ -137,32 +136,43 @@ class CompetencyAnalyzer:
         print(f"ANALYZING CLUSTER GAPS FOR: {cluster_id}")
         print(f"{'='*80}")
         
+        # Lazy import to avoid circular dependency
+        from feedback_analyzer import feedback_analyzer
+        
         # Fetch all teachers in cluster
         teachers = db.get_teachers_by_cluster(cluster_id)
         
         print(f"\nFound {len(teachers)} teachers in cluster")
         
-        if len(teachers) < self.n_clusters:
-            print(f"ERROR: Not enough teachers for clustering (need at least {self.n_clusters})")
+        if len(teachers) < 2:
+            print(f"ERROR: Need at least 2 teachers for clustering (found {len(teachers)})")
             return {'error': 'Not enough teachers for clustering'}
+        
+        if len(teachers) < self.n_clusters:
+            print(f"WARNING: Fewer teachers ({len(teachers)}) than requested clusters ({self.n_clusters})")
+            print(f"Adjusting n_clusters to {max(2, len(teachers))}")
+            self.n_clusters = max(2, len(teachers))
         
         # Collect assessment data
         feature_matrix = []
         teacher_ids = []
         
-        print(f"\nCollecting assessment data...")
+        print(f"\nCollecting assessment data from feedback...")
         for teacher in teachers:
-            assessment = db.get_teacher_assessments(teacher['id'])
-            if assessment:
-                features = self._extract_features(assessment)
-                feature_matrix.append(features)
-                teacher_ids.append(teacher['id'])
-                print(f"  {teacher['id']}: Assessment found")
-            else:
-                print(f"  {teacher['id']}: No assessment data")
+            try:
+                assessment_scores = feedback_analyzer.create_assessment_from_feedback(teacher['id'])
+                if assessment_scores:
+                    features = self._extract_features(assessment_scores)
+                    feature_matrix.append(features)
+                    teacher_ids.append(teacher['id'])
+                    print(f"  ✓ {teacher['id']}: Assessment generated")
+                else:
+                    print(f"  ✗ {teacher['id']}: Failed to generate assessment")
+            except Exception as e:
+                print(f"  ✗ {teacher['id']}: Error - {e}")
         
-        if len(feature_matrix) < self.n_clusters:
-            print(f"ERROR: Insufficient assessment data")
+        if len(feature_matrix) < 2:
+            print(f"ERROR: Insufficient assessment data (need at least 2 teachers with data)")
             return {'error': 'Insufficient assessment data'}
         
         print(f"\nSuccessfully collected data for {len(feature_matrix)} teachers")
@@ -175,7 +185,7 @@ class CompetencyAnalyzer:
         print(f"\nRunning K-Means clustering (k={self.n_clusters})...")
         self.kmeans = KMeans(n_clusters=self.n_clusters, random_state=42, n_init=10)
         cluster_labels = self.kmeans.fit_predict(X_scaled)
-        print(f"Clustering complete!")
+        print(f"✓ Clustering complete!")
         
         # Group teachers by cluster
         cluster_groups = {}
@@ -196,28 +206,28 @@ class CompetencyAnalyzer:
             avg_scores = np.mean([t['features'] for t in group], axis=0)
             
             print(f"\nCLUSTER {label} ({len(group)} teachers)")
-            print(f"   Teachers: {', '.join([t['teacher_id'] for t in group][:5])}")
-            if len(group) > 5:
-                print(f"   ... and {len(group) - 5} more")
+            print(f"   Teachers: {', '.join([t['teacher_id'][:8] for t in group][:3])}")
+            if len(group) > 3:
+                print(f"   ... and {len(group) - 3} more")
             
             print(f"\n   Average Competency Scores:")
             
             scores_dict = {
-                'classroom_management': round(avg_scores[0], 2),
-                'content_knowledge': round(avg_scores[1], 2),
-                'pedagogy': round(avg_scores[2], 2),
-                'technology_usage': round(avg_scores[3], 2),
-                'student_engagement': round(avg_scores[4], 2)
+                'classroom_management': round(float(avg_scores[0]), 2),
+                'content_knowledge': round(float(avg_scores[1]), 2),
+                'pedagogy': round(float(avg_scores[2]), 2),
+                'technology_usage': round(float(avg_scores[3]), 2),
+                'student_engagement': round(float(avg_scores[4]), 2)
             }
             
             # Visual display of cluster competencies
             for competency, score in scores_dict.items():
                 if score < 5:
-                    indicator = "GAP"
+                    indicator = "🔴 GAP"
                 elif score < 7:
-                    indicator = "OK"
+                    indicator = "🟡 OK"
                 else:
-                    indicator = "STRONG"
+                    indicator = "🟢 STRONG"
                 
                 competency_display = competency.replace('_', ' ').title()
                 print(f"     {indicator}  {competency_display:.<35} {score:>4.1f}/10")
@@ -233,18 +243,20 @@ class CompetencyAnalyzer:
         return {
             'cluster_id': cluster_id,
             'total_teachers': len(teachers),
+            'teachers_with_data': len(feature_matrix),
+            'cluster_count': self.n_clusters,
             'clusters': cluster_insights
         }
     
-    def _extract_features(self, assessment):
+    def _extract_features(self, assessment_dict):
         """Convert assessment dict to feature vector"""
         return np.array([
-            assessment.get('classroom_management_score', 0),
-            assessment.get('content_knowledge_score', 0),
-            assessment.get('pedagogy_score', 0),
-            assessment.get('technology_usage_score', 0),
-            assessment.get('student_engagement_score', 0)
-        ])
+            float(assessment_dict.get('classroom_management', 5)),
+            float(assessment_dict.get('content_knowledge', 5)),
+            float(assessment_dict.get('pedagogy', 5)),
+            float(assessment_dict.get('technology_usage', 5)),
+            float(assessment_dict.get('student_engagement', 5))
+        ], dtype=np.float64)
     
     def _recommend_modules(self, gap_areas):
         """Map competency gaps to training module IDs"""

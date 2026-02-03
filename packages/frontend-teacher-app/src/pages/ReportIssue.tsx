@@ -47,7 +47,7 @@ const clusters = [
 
 export default function ReportIssue() {
   const { teacher } = useAuth();
-  const { submitFeedback } = useFeedback();
+  const { submitIssue } = useFeedback();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -86,22 +86,20 @@ export default function ReportIssue() {
     try {
       console.log('🚀 Submitting feedback...');
       
-      const result = await submitFeedback({
+      const result = await submitIssue({
         teacherId: teacher.id,
-        cluster,
-        category: category as IssueCategory,
+        cluster: teacher.cluster,
+        category: "academic",
         description,
       });
       
-      // ✅ DETAILED DEBUGGING
-      console.log('📥 Full API Response:', JSON.stringify(result, null, 2));
-      console.log('🔍 feedback_deleted:', result?.feedback_deleted);
-      console.log('🔍 skipped_ai_call:', result?.skipped_ai_call);
-      console.log('🔍 success:', result?.success);
+      console.log('Full API Response:', JSON.stringify(result, null, 2));
+      console.log('issue_deleted:', result?.issue_deleted);
+      console.log('skipped_ai_call:', result?.skipped_ai_call);
+      console.log('success:', result?.success);
       
-      // ✅ FIXED: Check for already assigned scenario
-      if (result?.feedback_deleted === true || result?.skipped_ai_call === true) {
-        console.log('✅ Training already assigned - showing appropriate screen');
+      if (result?.issue_deleted === true || result?.skipped_ai_call === true) {
+        console.log('Training already assigned - showing appropriate screen');
         
         setIsAlreadyAssigned(true);
         setAssignmentMessage(result.message || 'Training already assigned for this issue');
@@ -111,21 +109,19 @@ export default function ReportIssue() {
           description: result.reason || "You already have training for this competency area.",
         });
         
-        // Navigate after 2 seconds
         setTimeout(() => {
-          console.log('⏰ Timeout triggered - navigating to /training');
+          console.log('Timeout triggered - navigating to /training');
           setIsAlreadyAssigned(false);
           setCategory('');
           setDescription('');
           navigate('/training');
         }, 2000);
         
-        return; // ✅ IMPORTANT: Exit here to prevent fall-through
+        return; 
       } 
       
-      // ✅ New training assigned successfully
       if (result?.success) {
-        console.log('✅ New training assigned - showing success screen');
+        console.log('New training assigned - showing success screen');
         
         setIsSuccess(true);
         
@@ -134,24 +130,22 @@ export default function ReportIssue() {
           description: "Personalized training has been assigned to you.",
         });
         
-        // Reset form after showing success
         setTimeout(() => {
-          console.log('⏰ Timeout triggered - navigating to /training');
+          console.log('Timeout triggered - navigating to /training');
           setCategory('');
           setDescription('');
           setIsSuccess(false);
           navigate('/training');
         }, 2000);
         
-        return; // ✅ IMPORTANT: Exit here
+        return; 
       }
       
-      // ✅ Fallback - unexpected response
-      console.warn('⚠️ Unexpected API response format:', result);
+      console.warn('Unexpected API response format:', result);
       throw new Error('Unexpected response from server');
       
     } catch (error) {
-      console.error('❌ Submit error:', error);
+      console.error('Submit error:', error);
       
       toast({
         title: "Failed to submit",
@@ -163,9 +157,8 @@ export default function ReportIssue() {
     }
   };
 
-  // "Already Assigned" Success Screen
   if (isAlreadyAssigned) {
-    console.log('🟡 Rendering "Already Assigned" screen');
+    console.log('Rendering "Already Assigned" screen');
     return (
       <MobileLayout showNav={false}>
         <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-6">
@@ -188,9 +181,8 @@ export default function ReportIssue() {
     );
   }
 
-  // "New Issue Reported" Success Screen
   if (isSuccess) {
-    console.log('🟢 Rendering "New Issue" success screen');
+    console.log('Rendering "New Issue" success screen');
     return (
       <MobileLayout showNav={false}>
         <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-6">
@@ -203,7 +195,7 @@ export default function ReportIssue() {
             Issue Reported!
           </h2>
           <p className="text-gray-600 mb-2">
-            Your feedback has been submitted successfully.
+            Your Issue has been submitted successfully.
           </p>
           <p className="text-sm text-gray-500">
             Personalized training assigned!
@@ -229,47 +221,7 @@ export default function ReportIssue() {
                 <p className="font-medium">{teacher?.name}</p>
                 <p className="text-sm text-muted-foreground">{teacher?.employeeId}</p>
               </div>
-
-              {/* Cluster */}
-              <div>
-                <Label>Cluster</Label>
-                <Select value={cluster} onValueChange={setCluster}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clusters.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Category */}
-              <div>
-                <Label>Issue Category *</Label>
-                <Select 
-                  value={category} 
-                  onValueChange={(value) => setCategory(value as IssueCategory)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.category && (
-                  <p className="text-sm text-destructive mt-1">{errors.category}</p>
-                )}
-              </div>
-
+          
               {/* Description */}
               <div>
                 <Label>
@@ -286,15 +238,6 @@ export default function ReportIssue() {
                 {errors.description && (
                   <p className="text-sm text-destructive mt-1">{errors.description}</p>
                 )}
-              </div>
-
-              {/* Attachment placeholder */}
-              <div>
-                <Label className="text-muted-foreground">Attachment (Coming soon)</Label>
-                <Button variant="outline" type="button" disabled className="w-full">
-                  <Paperclip className="w-4 h-4 mr-2" />
-                  Add photo or document
-                </Button>
               </div>
 
               {/* Submit */}

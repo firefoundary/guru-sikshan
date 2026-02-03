@@ -47,16 +47,16 @@ router.post('/auth/login', async (req, res) => {
   }
 });
 
-// ==================== FEEDBACK ENDPOINTS ====================
+// ==================== ISSUES ENDPOINTS (was FEEDBACK) ====================
 
-router.get('/feedback/teacher/:teacherId', async (req, res) => {
+router.get('/issues/teacher/:teacherId', async (req, res) => {
   const { teacherId } = req.params;
 
-  console.log(`\nHISTORY REQUEST: Checking feedback for Teacher ID: [${teacherId}]`);
+  console.log(`\nHISTORY REQUEST: Checking issues for Teacher ID: [${teacherId}]`);
 
   try {
     const { data, error } = await supabase
-      .from('feedback')
+      .from('issues')
       .select('*')
       .eq('teacher_id', teacherId)
       .order('created_at', { ascending: false });
@@ -68,7 +68,7 @@ router.get('/feedback/teacher/:teacherId', async (req, res) => {
 
     console.log(`Found ${data?.length || 0} rows for THIS teacher.`);
     
-    const feedbacks = data.map(item => ({
+    const issues = data.map(item => ({
       id: item.id,
       teacherId: item.teacher_id,
       cluster: item.cluster,
@@ -80,32 +80,36 @@ router.get('/feedback/teacher/:teacherId', async (req, res) => {
       adminRemarks: item.admin_remarks,
     }));
 
-    res.json({ success: true, feedbacks });
+    res.json({ success: true, issues });
   } catch (error) {
-    console.error('Get feedback error:', error);
+    console.error('Get issues error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/feedback/:id', async (req, res) => {
+// Changed: /feedback/:id -> /issues/:id
+router.get('/issues/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const { data, error } = await supabase.from('feedback').select('*').eq('id', id).single();
-    if (error || !data) return res.status(404).json({ error: 'Feedback not found' });
-    res.json({ success: true, feedback: data });
+    // Changed: table('feedback') -> table('issues')
+    const { data, error } = await supabase.from('issues').select('*').eq('id', id).single();
+    if (error || !data) return res.status(404).json({ error: 'Issue not found' });
+    res.json({ success: true, issue: data });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/feedback', async (req, res) => {
+// Changed: /feedback -> /issues
+router.post('/issues', async (req, res) => {
   const { teacherId, cluster, category, description } = req.body;
   
-  console.log('Feedback submission received:', teacherId, cluster, category);
+  console.log('Issue submission received:', teacherId, cluster, category);
   
   try {
-    const { data: feedbackData, error: feedbackError } = await supabase
-      .from('feedback')
+    // Changed: table('feedback') -> table('issues')
+    const { data: issueData, error: issueError } = await supabase
+      .from('issues')
       .insert({
         teacher_id: teacherId,
         cluster,
@@ -116,9 +120,9 @@ router.post('/feedback', async (req, res) => {
       .select()
       .single();
     
-    if (feedbackError) throw feedbackError;
+    if (issueError) throw issueError;
     
-    console.log(`Feedback saved with ID: ${feedbackData.id}...`);
+    console.log(`Issue saved with ID: ${issueData.id}...`);
     
     let aiResponse = null;
     let fullAiResponse = null;
@@ -127,12 +131,14 @@ router.post('/feedback', async (req, res) => {
       const aiServiceUrl = `${AI_SERVICE_URL}/api/feedback-to-training`;
       console.log('Calling AI Service at:', aiServiceUrl);
       
+      // Send both issue_id (new) and feedback_id (legacy) for backward compatibility
       const aiResult = await fetch(aiServiceUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           teacher_id: teacherId,
-          feedback_id: feedbackData.id,
+          issue_id: issueData.id,
+          feedback_id: issueData.id, // backward compatibility
           admin_id: 'system-auto'
         })
       });
@@ -143,12 +149,13 @@ router.post('/feedback', async (req, res) => {
         
         fullAiResponse = aiData;
         
-        if ((aiData as any).feedback_deleted || (aiData as any).skipped_ai_call) {
-          console.log('Training already assigned - feedback deleted');
+        // Check for issue_deleted or feedback_deleted (backward compat)
+        if ((aiData as any).issue_deleted || (aiData as any).feedback_deleted || (aiData as any).skipped_ai_call) {
+          console.log('Training already assigned - issue deleted');
           
           return res.status(200).json({
             success: true,
-            feedback_deleted: (aiData as any).feedback_deleted,
+            issue_deleted: (aiData as any).issue_deleted || (aiData as any).feedback_deleted,
             skipped_ai_call: (aiData as any).skipped_ai_call,
             message: (aiData as any).message,
             reason: (aiData as any).reason,
@@ -168,12 +175,12 @@ router.post('/feedback', async (req, res) => {
     
     res.status(201).json({
       success: true,
-      feedback: feedbackData,
+      issue: issueData,
       aiResponse
     });
     
   } catch (error) {
-    console.error('Submit feedback error:', error);
+    console.error('Submit issue error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -229,7 +236,8 @@ router.get('/training/:teacherId', async (req, res) => {
       moduleId: assignment.module_id,
       assignedBy: assignment.assigned_by,
       assignedReason: assignment.assigned_reason,
-      sourceFeedbackId: assignment.source_feedback_id,
+      // Changed: source_feedback_id -> source_issue_id
+      sourceIssueId: assignment.source_issue_id,
       status: assignment.status,
       progressPercentage: assignment.progress_percentage || 0,
       assignedDate: assignment.assigned_date,
@@ -294,6 +302,194 @@ router.patch('/training/:trainingId/progress', async (req, res) => {
   } catch (error) {
     console.error('Update progress error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ==================== TRAINING FEEDBACK ENDPOINTS ====================
+
+// Submit training feedback (after completing a module)
+router.post('/training-feedback', async (req, res) => {
+  const {
+    teacherId,
+    teacherName,
+    assignmentId,
+    moduleId,
+    rating,
+    wasHelpful,
+    comment,
+    strengths,
+    improvements,
+    stillHasIssue,
+    needsAdditionalSupport
+  } = req.body;
+
+  console.log('Training feedback submission received:', { teacherId, assignmentId, rating });
+
+  // Validation
+  if (!teacherId || !assignmentId || !moduleId || rating === undefined || wasHelpful === undefined) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: teacherId, assignmentId, moduleId, rating, wasHelpful'
+    });
+  }
+
+  if (rating < 1 || rating > 5) {
+    return res.status(400).json({
+      success: false,
+      error: 'Rating must be between 1 and 5'
+    });
+  }
+
+  try {
+    const { data: feedbackData, error: feedbackError } = await supabase
+      .from('training_feedback')
+      .insert({
+        teacher_id: teacherId,
+        teacher_name: teacherName,
+        assignment_id: assignmentId,
+        module_id: moduleId,
+        rating,
+        was_helpful: wasHelpful,
+        comment: comment || null,
+        strengths: strengths || [],
+        improvements: improvements || [],
+        still_has_issue: stillHasIssue || false,
+        needs_additional_support: needsAdditionalSupport || false
+      })
+      .select()
+      .single();
+
+    if (feedbackError) {
+      console.error('Insert error:', feedbackError);
+      throw feedbackError;
+    }
+
+    console.log(`✅ Training feedback saved with ID: ${feedbackData.id}`);
+
+    // Return formatted response
+    res.status(201).json({
+      success: true,
+      feedback: {
+        id: feedbackData.id,
+        teacherId: feedbackData.teacher_id,
+        teacherName: feedbackData.teacher_name,
+        assignmentId: feedbackData.assignment_id,
+        moduleId: feedbackData.module_id,
+        rating: feedbackData.rating,
+        wasHelpful: feedbackData.was_helpful,
+        comment: feedbackData.comment,
+        strengths: feedbackData.strengths,
+        improvements: feedbackData.improvements,
+        stillHasIssue: feedbackData.still_has_issue,
+        needsAdditionalSupport: feedbackData.needs_additional_support,
+        createdAt: feedbackData.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Submit training feedback error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// Get all training feedback for a teacher
+router.get('/training-feedback/teacher/:teacherId', async (req, res) => {
+  const { teacherId } = req.params;
+
+  console.log(`Fetching training feedback for teacher: ${teacherId}`);
+
+  try {
+    const { data, error } = await supabase
+      .from('training_feedback')
+      .select(`
+        *,
+        training_modules (
+          id, title, competency_area
+        )
+      `)
+      .eq('teacher_id', teacherId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+
+    const feedbacks = (data || []).map((item: any) => ({
+      id: item.id,
+      teacherId: item.teacher_id,
+      teacherName: item.teacher_name,
+      assignmentId: item.assignment_id,
+      moduleId: item.module_id,
+      rating: item.rating,
+      wasHelpful: item.was_helpful,
+      comment: item.comment,
+      strengths: item.strengths || [],
+      improvements: item.improvements || [],
+      stillHasIssue: item.still_has_issue,
+      needsAdditionalSupport: item.needs_additional_support,
+      createdAt: item.created_at,
+      module: item.training_modules ? {
+        id: item.training_modules.id,
+        title: item.training_modules.title,
+        competencyArea: item.training_modules.competency_area
+      } : null
+    }));
+
+    console.log(`Found ${feedbacks.length} training feedback entries`);
+
+    res.json({ success: true, feedbacks });
+  } catch (error) {
+    console.error('Get training feedback error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Get training feedback for a specific assignment
+router.get('/training-feedback/assignment/:assignmentId', async (req, res) => {
+  const { assignmentId } = req.params;
+
+  console.log(`Fetching training feedback for assignment: ${assignmentId}`);
+
+  try {
+    const { data, error } = await supabase
+      .from('training_feedback')
+      .select('*')
+      .eq('assignment_id', assignmentId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+      console.error('Supabase error:', error);
+      throw error;
+    }
+
+    if (!data) {
+      return res.json({ success: true, feedback: null });
+    }
+
+    const feedback = {
+      id: data.id,
+      teacherId: data.teacher_id,
+      teacherName: data.teacher_name,
+      assignmentId: data.assignment_id,
+      moduleId: data.module_id,
+      rating: data.rating,
+      wasHelpful: data.was_helpful,
+      comment: data.comment,
+      strengths: data.strengths || [],
+      improvements: data.improvements || [],
+      stillHasIssue: data.still_has_issue,
+      needsAdditionalSupport: data.needs_additional_support,
+      createdAt: data.created_at
+    };
+
+    res.json({ success: true, feedback });
+  } catch (error) {
+    console.error('Get training feedback by assignment error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 

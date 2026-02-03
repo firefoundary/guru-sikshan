@@ -14,24 +14,22 @@ import { format } from 'date-fns';
 const statusFilters: { value: IssueStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All Status' },
   { value: 'pending', label: 'Pending' },
-  { value: 'in_review', label: 'In Review' },
-  { value: 'resolved', label: 'Resolved' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'resolved', label: 'Resolved' }
 ];
 
 export default function History() {
-  const { feedbacks, isLoading } = useFeedback();
+  const { issues, isLoading } = useFeedback();
   const { trainings } = useTraining(); // ✅ ADD THIS
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<IssueStatus | 'all'>('all');
 
-  const filteredFeedbacks = feedbacks.filter(
+  const filteredFeedbacks = issues.filter(
     (f) => statusFilter === 'all' || f.status === statusFilter
   );
 
   // ✅ NEW: Helper function to find training from feedback
   const getTrainingFromFeedback = (feedbackId: string) => {
-    return trainings.find(t => t.sourceFeedbackId === feedbackId);
+    return trainings.find(t => t.sourceIssueId === feedbackId);
   };
 
   // ✅ NEW: Handle click - navigate to training if exists

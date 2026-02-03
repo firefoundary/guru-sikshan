@@ -21,7 +21,7 @@ export interface TrainingAssignment {
   moduleId: string;
   assignedBy: string;
   assignedReason: string;
-  sourceFeedbackId?: string;
+  sourceIssueId?: string;
   status: TrainingStatus;
   progressPercentage: number;
   assignedDate: Date;
@@ -88,7 +88,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
           moduleId: t.moduleId,
           assignedBy: t.assignedBy,
           assignedReason: t.assignedReason,
-          sourceFeedbackId: t.sourceFeedbackId,
+          sourceIssueId: t.sourceIssueId,
           status: t.status as TrainingStatus,
           progressPercentage: t.progressPercentage || 0,
           assignedDate: new Date(t.assignedDate),

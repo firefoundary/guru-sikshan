@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { useFeedback } from '@/contexts/FeedbackContext';
+import { useIssue } from '@/contexts/FeedbackContext'; // Changed import
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,29 +11,29 @@ import { format } from 'date-fns';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
 
-export default function FeedbackDetail() {
+export default function IssueDetail() {
   const { id } = useParams<{ id: string }>();
-  const { getFeedbackById } = useFeedback();
+  const { getIssueById } = useIssue(); 
   const navigate = useNavigate();
   const [aiResponse, setAiResponse] = useState<any>(null);
   const [loadingAI, setLoadingAI] = useState(false);
 
-  const feedback = id ? getFeedbackById(id) : undefined;
+  const issue = id ? getIssueById(id) : undefined; 
 
   useEffect(() => {
     if (id) fetchAIResponse(id);
   }, [id]);
 
-  const fetchAIResponse = async (feedbackId: string) => {
+  const fetchAIResponse = async (issueId: string) => {
     setLoadingAI(true);
     try {
-      const response = await fetch(`${API_URL}/api/teacher/feedback/${feedbackId}/ai-response`);
+      const response = await fetch(`${API_URL}/api/teacher/issues/${issueId}/ai-response`);
       
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.aiResponse) {
           setAiResponse(data.aiResponse);
-          return; // ✅ Found real data, exit.
+          return; 
         }
       }
     } catch (error) {
@@ -42,14 +42,13 @@ export default function FeedbackDetail() {
       setLoadingAI(false);
     }
 
-    // 🛡️ DEMO FALLBACK: If API failed or no data found, show this Mock Data!
     setAiResponse({
       assigned_module: "Classroom Management Basics",
       suggestion: "To address the noise levels, we recommend the standard classroom management module."
     });
   };
 
-  if (!feedback) return null;
+  if (!issue) return null; 
 
   return (
     <MobileLayout>
@@ -64,11 +63,11 @@ export default function FeedbackDetail() {
 
         {/* Status & Category */}
         <div className="mb-6 flex flex-wrap items-center gap-2">
-          <CategoryBadge category={feedback.category} />
-          <StatusBadge status={feedback.status} />
+          <CategoryBadge category={issue.category} />
+          <StatusBadge status={issue.status} />
         </div>
 
-        {/* ✅ AI TRAINING CARD (Guaranteed to Show) */}
+        {/* AI TRAINING CARD */}
         <Card className="mb-6 border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base text-blue-700 dark:text-blue-300">
@@ -85,13 +84,12 @@ export default function FeedbackDetail() {
                   {aiResponse?.assigned_module || "Classroom Management Basics"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Based on your report ("{feedback.description.substring(0, 30)}..."), this module is recommended.
+                  Based on your report ("{issue.description.substring(0, 30)}..."), this module is recommended.
                 </p>
                 
-                {/* 🚀 THE BUTTON (Updated to pass feedbackId) */}
                 <Button 
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={() => navigate(`/training/demo-module?feedbackId=${id}`)}
+                  onClick={() => navigate(`/training/demo-module?issueId=${id}&feedbackId=${id}`)}
                 >
                   <PlayCircle className="mr-2 h-4 w-4" />
                   Start Training Module
@@ -107,17 +105,17 @@ export default function FeedbackDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Your Report</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-foreground">{feedback.description}</p>
+            <p className="text-foreground">{issue.description}</p>
           </CardContent>
         </Card>
 
         {/* Details */}
         <div className="text-xs text-muted-foreground flex gap-4 px-1">
           <div className="flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> {feedback.cluster}
+            <MapPin className="h-3 w-3" /> {issue.cluster}
           </div>
           <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" /> {format(new Date(feedback.createdAt), 'MMM d, yyyy')}
+            <Calendar className="h-3 w-3" /> {format(new Date(issue.createdAt), 'MMM d, yyyy')}
           </div>
         </div>
       </div>

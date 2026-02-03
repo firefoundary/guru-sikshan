@@ -260,26 +260,6 @@ export default function TrainingDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {/* Competency Area */}
-            {training.module?.competencyArea && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Competency Area:</span>
-                <span className="font-medium">
-                  {training.module.competencyArea.replace(/_/g, ' ')}
-                </span>
-              </div>
-            )}
-
-            {/* Difficulty Level */}
-            {training.module?.difficultyLevel && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Difficulty:</span>
-                <Badge variant="outline">
-                  {training.module.difficultyLevel}
-                </Badge>
-              </div>
-            )}
-
             {/* Estimated Duration */}
             {training.module?.estimatedDuration && (
               <div className="flex justify-between items-center">
@@ -311,13 +291,6 @@ export default function TrainingDetail() {
               </span>
             </div>
 
-            {/* Assigned Reason */}
-            {training.assignedReason && (
-              <div className="pt-3 border-t">
-                <p className="text-muted-foreground mb-1">Why this training?</p>
-                <p className="text-sm">{training.assignedReason}</p>
-              </div>
-            )}
           </CardContent>
         </Card>
 

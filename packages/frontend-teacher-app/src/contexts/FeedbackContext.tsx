@@ -2,9 +2,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useAuth } from './AuthContext';
 
 export type IssueCategory = 'academic' | 'infrastructure' | 'administrative' | 'safety' | 'technology' | 'other';
-export type IssueStatus = 'pending' | 'in_review' | 'resolved' | 'rejected';
+export type IssueStatus = 'pending' | 'reviewed' | 'resolved' | 'training_assigned';
 
-export interface Feedback {
+export interface Issue {
   id: string;
   teacherId: string;
   cluster: string;
@@ -21,17 +21,21 @@ export interface Feedback {
   };
 }
 
+// Backward compatibility alias
+export type Feedback = Issue;
+
 // ✅ NEW: Separate interface for submission result
-export interface FeedbackSubmissionResult {
+export interface IssueSubmissionResult {
   success: boolean;
-  feedback?: any;
+  issue?: any;
   aiResponse?: {
     suggestion: string;
     inferredGaps: string[];
     priority: string;
   };
   // ✅ Fields for "already assigned" scenario
-  feedback_deleted?: boolean;
+  issue_deleted?: boolean;
+  feedback_deleted?: boolean; // backward compat
   skipped_ai_call?: boolean;
   message?: string;
   reason?: string;
@@ -39,97 +43,100 @@ export interface FeedbackSubmissionResult {
   already_existed?: boolean;
 }
 
-interface FeedbackContextType {
-  feedbacks: Feedback[];
+// Backward compatibility alias
+export type FeedbackSubmissionResult = IssueSubmissionResult;
+
+interface IssueContextType {
+  issues: Issue[];
   isLoading: boolean;
-  submitFeedback: (data: Omit<Feedback, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'aiResponse'>) => Promise<FeedbackSubmissionResult>; // ✅ Updated return type
-  getFeedbackById: (id: string) => Feedback | undefined;
-  refreshFeedbacks: () => Promise<void>;
+  submitIssue: (data: Omit<Issue, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'aiResponse'>) => Promise<IssueSubmissionResult>;
+  getIssueById: (id: string) => Issue | undefined;
+  refreshIssues: () => Promise<void>;
   pendingCount: number;
-  inReviewCount: number;
+  reviewedCount: number;
   resolvedCount: number;
   error: string | null;
 }
 
-const FeedbackContext = createContext<FeedbackContextType | undefined>(undefined);
+const IssueContext = createContext<IssueContextType | undefined>(undefined);
 
 // ⚡ FIX: Use 127.0.0.1 to avoid Mac localhost issues
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
 
-export function FeedbackProvider({ children }: { children: ReactNode }) {
+export function IssueProvider({ children }: { children: ReactNode }) {
   const { teacher, isAuthenticated } = useAuth();
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [issues, setIssues] = useState<Issue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch feedbacks when teacher logs in
+  // Fetch issues when teacher logs in
   useEffect(() => {
     if (isAuthenticated && teacher?.id) {
       console.log(`👤 Auth Detected for Teacher: ${teacher.id}`);
-      refreshFeedbacks();
+      refreshIssues();
     } else {
       console.log('👤 No Auth User detected yet...');
-      setFeedbacks([]);
+      setIssues([]);
     }
   }, [isAuthenticated, teacher?.id]);
 
-  const refreshFeedbacks = async () => {
+  const refreshIssues = async () => {
     if (!teacher?.id) return;
 
-    console.log(`🔄 Fetching feedbacks from: ${API_URL}/api/teacher/feedback/teacher/${teacher.id}`);
+    console.log(`🔄 Fetching issues from: ${API_URL}/api/teacher/issues/teacher/${teacher.id}`);
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/api/teacher/feedback/teacher/${teacher.id}`);
+      const response = await fetch(`${API_URL}/api/teacher/issues/teacher/${teacher.id}`);
       console.log(`📡 Response Status: ${response.status}`);
       
       const data = await response.json();
       console.log('📦 Data received:', data);
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch feedbacks');
+        throw new Error(data.error || 'Failed to fetch issues');
       }
 
-      if (data.success && data.feedbacks) {
-        const parsedFeedbacks = data.feedbacks.map((f: any) => ({
-          id: f.id,
-          teacherId: f.teacherId,
-          cluster: f.cluster,
-          category: f.category as IssueCategory,
-          description: f.description,
-          status: f.status as IssueStatus,
-          createdAt: new Date(f.createdAt),
-          updatedAt: new Date(f.updatedAt),
-          adminRemarks: f.adminRemarks,
+      if (data.success && data.issues) {
+        const parsedIssues = data.issues.map((i: any) => ({
+          id: i.id,
+          teacherId: i.teacherId,
+          cluster: i.cluster,
+          category: i.category as IssueCategory,
+          description: i.description,
+          status: i.status as IssueStatus,
+          createdAt: new Date(i.createdAt),
+          updatedAt: new Date(i.updatedAt),
+          adminRemarks: i.adminRemarks,
         }));
         
-        setFeedbacks(parsedFeedbacks);
-        console.log(`✅ Loaded ${parsedFeedbacks.length} feedbacks`);
+        setIssues(parsedIssues);
+        console.log(`✅ Loaded ${parsedIssues.length} issues`);
       }
     } catch (err) {
-      console.error('❌ Error fetching feedbacks:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load feedbacks');
+      console.error('❌ Error fetching issues:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load issues');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ✅ UPDATED: Return FeedbackSubmissionResult with all fields
-  const submitFeedback = async (
-    data: Omit<Feedback, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'aiResponse'>
-  ): Promise<FeedbackSubmissionResult> => {
+  // ✅ UPDATED: Return IssueSubmissionResult with all fields
+  const submitIssue = async (
+    data: Omit<Issue, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'aiResponse'>
+  ): Promise<IssueSubmissionResult> => {
     if (!teacher?.id) {
-      setError('You must be logged in to submit feedback');
+      setError('You must be logged in to submit an issue');
       return { success: false };
     }
   
-    console.log('🚀 Submitting Feedback to:', `${API_URL}/api/teacher/feedback`);
+    console.log('🚀 Submitting Issue to:', `${API_URL}/api/teacher/issues`);
     setIsLoading(true);
     setError(null);
   
     try {
-      const response = await fetch(`${API_URL}/api/teacher/feedback`, {
+      const response = await fetch(`${API_URL}/api/teacher/issues`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -146,18 +153,19 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       console.log('📤 Submit Result:', result);
   
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to submit feedback');
+        throw new Error(result.error || 'Failed to submit issue');
       }
 
-      // ✅ Check if feedback was deleted (training already assigned)
-      if (result.feedback_deleted === true || result.skipped_ai_call === true) {
-        console.log('⚠️ Training already assigned - feedback was deleted');
+      // ✅ Check if issue was deleted (training already assigned) - check both new and legacy keys
+      if (result.issue_deleted === true || result.feedback_deleted === true || result.skipped_ai_call === true) {
+        console.log('⚠️ Training already assigned - issue was deleted');
         setIsLoading(false);
         
         // Return the "already assigned" response
         return {
           success: true,
-          feedback_deleted: result.feedback_deleted,
+          issue_deleted: result.issue_deleted || result.feedback_deleted,
+          feedback_deleted: result.feedback_deleted, // backward compat
           skipped_ai_call: result.skipped_ai_call,
           message: result.message,
           reason: result.reason,
@@ -165,27 +173,29 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         };
       }
   
-      // ✅ Normal flow - new feedback created
-      if (result.success && result.feedback) {
-        const newFeedback: Feedback = {
-          id: result.feedback.id,
-          teacherId: result.feedback.teacherId,
-          cluster: result.feedback.cluster,
-          category: result.feedback.category as IssueCategory,
-          description: result.feedback.description,
-          status: result.feedback.status as IssueStatus,
-          createdAt: new Date(result.feedback.createdAt),
-          updatedAt: new Date(result.feedback.updatedAt),
-          adminRemarks: result.feedback.adminRemarks,
+      // ✅ Normal flow - new issue created (check both 'issue' and 'feedback' keys for backward compat)
+      const issueData = result.issue || result.feedback;
+      
+      if (result.success && issueData) {
+        const newIssue: Issue = {
+          id: issueData.id,
+          teacherId: issueData.teacherId || issueData.teacher_id,
+          cluster: issueData.cluster,
+          category: issueData.category as IssueCategory,
+          description: issueData.description,
+          status: issueData.status as IssueStatus,
+          createdAt: new Date(issueData.createdAt || issueData.created_at),
+          updatedAt: new Date(issueData.updatedAt || issueData.updated_at),
+          adminRemarks: issueData.adminRemarks || issueData.admin_remarks,
           aiResponse: result.aiResponse, 
         };
   
-        setFeedbacks(prev => [newFeedback, ...prev]);
+        setIssues(prev => [newIssue, ...prev]);
         setIsLoading(false);
         
         return { 
           success: true, 
-          feedback: result.feedback,
+          issue: issueData,
           aiResponse: result.aiResponse 
         };
       }
@@ -193,40 +203,46 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       throw new Error('Invalid response from server');
       
     } catch (err) {
-      console.error('❌ Error submitting feedback:', err);
-      setError(err instanceof Error ? err.message : 'Failed to submit feedback');
+      console.error('❌ Error submitting issue:', err);
+      setError(err instanceof Error ? err.message : 'Failed to submit issue');
       setIsLoading(false);
       return { success: false };
     }
   };
 
-  const getFeedbackById = (id: string) => feedbacks.find(f => f.id === id);
+  const getIssueById = (id: string) => issues.find(i => i.id === id);
 
-  const pendingCount = feedbacks.filter(f => f.status === 'pending').length;
-  const inReviewCount = feedbacks.filter(f => f.status === 'in_review').length;
-  const resolvedCount = feedbacks.filter(f => f.status === 'resolved').length;
+  const pendingCount = issues.filter(i => i.status === 'pending').length;
+  const reviewedCount = issues.filter(i => i.status === 'reviewed').length;
+  const resolvedCount = issues.filter(i => i.status === 'resolved').length;
 
   return (
-    <FeedbackContext.Provider value={{
-      feedbacks,
+    <IssueContext.Provider value={{
+      issues,
       isLoading,
-      submitFeedback,
-      getFeedbackById,
-      refreshFeedbacks,
+      submitIssue,
+      getIssueById,
+      refreshIssues,
       pendingCount,
-      inReviewCount,
+      reviewedCount,
       resolvedCount,
       error,
     }}>
       {children}
-    </FeedbackContext.Provider>
+    </IssueContext.Provider>
   );
 }
 
-export function useFeedback() {
-  const context = useContext(FeedbackContext);
+// Backward compatibility alias
+export const FeedbackProvider = IssueProvider;
+
+export function useIssue() {
+  const context = useContext(IssueContext);
   if (context === undefined) {
-    throw new Error('useFeedback must be used within a FeedbackProvider');
+    throw new Error('useIssue must be used within an IssueProvider');
   }
   return context;
 }
+
+// Backward compatibility alias
+export const useFeedback = useIssue;

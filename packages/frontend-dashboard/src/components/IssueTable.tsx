@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, ChevronUp, ChevronDown, AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Search, Filter, ChevronUp, ChevronDown, AlertCircle, CheckCircle, Clock, Trash2 } from 'lucide-react';
 import type { Feedback } from '@/services/api';
 
 interface IssueTableProps {
@@ -7,6 +7,7 @@ interface IssueTableProps {
   loading?: boolean;
   onStatusChange?: (id: string, status: Feedback['status']) => void;
   onView?: (issue: Feedback) => void;
+  onDelete?: (id: string) => void; // ✅ NEW: Delete handler
 }
 
 type SortField = 'teacherName' | 'cluster' | 'category' | 'status' | 'createdAt';
@@ -14,20 +15,16 @@ type SortOrder = 'asc' | 'desc';
 
 const statusIcons: Record<string, typeof AlertCircle> = {
   pending: AlertCircle,
-  in_review: Clock,
   reviewed: Clock,
   resolved: CheckCircle,
   training_assigned: CheckCircle,
-  rejected: XCircle,
 };
 
 const statusColors: Record<string, string> = {
   pending: 'badge-destructive',
-  in_review: 'badge-warning',
   reviewed: 'badge-warning',
   resolved: 'badge-success',
-  training_assigned: 'badge-success',
-  rejected: 'badge-primary',
+  training_assigned: 'badge-primary',
 };
 
 const categoryColors: Record<string, string> = {
@@ -39,7 +36,7 @@ const categoryColors: Record<string, string> = {
   other: 'badge-warning',
 };
 
-export function IssueTable({ issues, loading, onStatusChange, onView }: IssueTableProps) {
+export function IssueTable({ issues, loading, onStatusChange, onView, onDelete }: IssueTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -159,11 +156,9 @@ export function IssueTable({ issues, loading, onStatusChange, onView }: IssueTab
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
-            <option value="in_review">In Review</option>
             <option value="reviewed">Reviewed</option>
             <option value="resolved">Resolved</option>
             <option value="training_assigned">Training Assigned</option>
-            <option value="rejected">Rejected</option>
           </select>
           <select
             value={categoryFilter}
@@ -275,7 +270,25 @@ export function IssueTable({ issues, loading, onStatusChange, onView }: IssueTab
                             View
                           </button>
                         )}
-                        {onStatusChange && issue.status !== 'resolved' && issue.status !== 'rejected' && (
+                        
+                        {/* ✅ Show delete button for resolved items */}
+                        {issue.status === 'resolved' && onDelete && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Delete this resolved feedback?')) {
+                                onDelete(issue.id);
+                              }
+                            }}
+                            className="text-sm text-destructive hover:underline flex items-center gap-1"
+                            title="Delete resolved feedback"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
+                        )}
+                        
+                        {/* Show status dropdown for non-resolved items */}
+                        {issue.status !== 'resolved' && onStatusChange && (
                           <select
                             value={issue.status}
                             onChange={(e) => onStatusChange(issue.id, e.target.value as Feedback['status'])}
@@ -283,11 +296,9 @@ export function IssueTable({ issues, loading, onStatusChange, onView }: IssueTab
                             aria-label="Change status"
                           >
                             <option value="pending">Pending</option>
-                            <option value="in_review">In Review</option>
                             <option value="reviewed">Reviewed</option>
                             <option value="resolved">Resolved</option>
                             <option value="training_assigned">Training Assigned</option>
-                            <option value="rejected">Rejected</option>
                           </select>
                         )}
                       </div>
