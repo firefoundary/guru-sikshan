@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFeedback, IssueStatus } from '@/contexts/FeedbackContext';
-import { useTraining } from '@/contexts/TrainingContext'; // ✅ ADD THIS
+import { useTraining } from '@/contexts/TrainingContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,8 @@ const statusFilters: { value: IssueStatus | 'all'; label: string }[] = [
 
 export default function History() {
   const { issues, isLoading } = useFeedback();
-  const { trainings } = useTraining(); // ✅ ADD THIS
+  const { trainings } = useTraining();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<IssueStatus | 'all'>('all');
 
@@ -27,12 +29,10 @@ export default function History() {
     (f) => statusFilter === 'all' || f.status === statusFilter
   );
 
-  // ✅ NEW: Helper function to find training from feedback
   const getTrainingFromFeedback = (feedbackId: string) => {
     return trainings.find(t => t.sourceIssueId === feedbackId);
   };
 
-  // ✅ NEW: Handle click - navigate to training if exists
   const handleFeedbackClick = (feedbackId: string) => {
     const training = getTrainingFromFeedback(feedbackId);
     if (training) {
@@ -40,7 +40,6 @@ export default function History() {
         state: {from: '/history'}
       });
     } else {
-      // Fallback: navigate to feedback detail if no training found
       navigate(`/feedback/${feedbackId}`,{
         state: {from: '/history'}
       });
@@ -55,10 +54,10 @@ export default function History() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <ClipboardList className="w-6 h-6" />
-              My Feedback
+              {t('history.title')}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {filteredFeedbacks.length} issue{filteredFeedbacks.length !== 1 ? 's' : ''}
+              {filteredFeedbacks.length} {filteredFeedbacks.length !== 1 ? t('history.issues') : t('history.issue')}
             </p>
           </div>
         </div>
@@ -74,11 +73,9 @@ export default function History() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {statusFilters.map((filter) => (
-                <SelectItem key={filter.value} value={filter.value}>
-                  {filter.label}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">{t('history.allStatus')}</SelectItem>
+              <SelectItem value="pending">{t('status.pending')}</SelectItem>
+              <SelectItem value="resolved">{t('status.resolved')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -101,13 +98,13 @@ export default function History() {
         ) : filteredFeedbacks.length > 0 ? (
           <div className="space-y-3">
             {filteredFeedbacks.map((feedback) => {
-              const training = getTrainingFromFeedback(feedback.id); // ✅ Get training
+              const training = getTrainingFromFeedback(feedback.id);
               
               return (
                 <Card
                   key={feedback.id}
                   className="cursor-pointer hover:bg-accent transition-colors"
-                  onClick={() => handleFeedbackClick(feedback.id)} // ✅ UPDATED
+                  onClick={() => handleFeedbackClick(feedback.id)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-2">
@@ -124,12 +121,11 @@ export default function History() {
                       <span>{format(feedback.createdAt, 'MMM d, yyyy')}</span>
                     </div>
 
-                    {/* ✅ Show training indicator if exists */}
                     {training && (
                       <div className="mt-3 pt-3 border-t flex items-center justify-between">
                         <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
                           <GraduationCap className="w-4 h-4" />
-                          <span>Training Assigned</span>
+                          <span>{t('history.trainingAssigned')}</span>
                         </div>
                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>
@@ -144,16 +140,16 @@ export default function History() {
             <CardContent className="p-8 text-center">
               <ClipboardList className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
               <h3 className="font-medium mb-1">
-                {statusFilter === 'all' ? 'No feedback yet' : 'No matching feedback'}
+                {statusFilter === 'all' ? t('history.noFeedback') : t('history.noMatching')}
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
                 {statusFilter === 'all'
-                  ? 'Start by reporting your first issue'
-                  : 'Try changing the filter to see more results'}
+                  ? t('history.startReporting')
+                  : t('history.tryFilter')}
               </p>
               {statusFilter === 'all' && (
                 <Button onClick={() => navigate('/report')}>
-                  Report an Issue
+                  {t('history.reportIssue')}
                 </Button>
               )}
             </CardContent>

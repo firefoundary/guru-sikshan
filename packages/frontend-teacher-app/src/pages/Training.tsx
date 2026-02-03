@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useTraining } from '@/contexts/TrainingContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -9,25 +10,26 @@ import { cn } from '@/lib/utils';
 
 export default function Training() {
   const { trainings, notStartedCount, inProgressCount, completedCount, isLoading } = useTraining();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const stats = [
     {
-      label: 'Not Started',
+      label: t('training.new'),
       count: notStartedCount,
       icon: Clock,
       color: 'text-muted-foreground',
       bgColor: 'bg-muted',
     },
     {
-      label: 'In Progress',
+      label: t('training.active'),
       count: inProgressCount,
       icon: PlayCircle,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-100 dark:bg-blue-900/30',
     },
     {
-      label: 'Completed',
+      label: t('training.done'),
       count: completedCount,
       icon: CheckCircle,
       color: 'text-emerald-600 dark:text-emerald-400',
@@ -56,14 +58,14 @@ export default function Training() {
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="sticky top-0 bg-background border-b z-10 px-4 py-3">
-            <h1 className="text-xl font-bold">My Training</h1>
+            <h1 className="text-xl font-bold">{t('training.myTraining')}</h1>
           </div>
 
           {/* Loading State */}
           <div className="flex items-center justify-center flex-1">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-sm text-muted-foreground">Loading your trainings...</p>
+              <p className="text-sm text-muted-foreground">{t('training.loadingTrainings')}</p>
             </div>
           </div>
         </div>
@@ -76,7 +78,7 @@ export default function Training() {
       <div className="flex flex-col h-full pb-20">
         {/* Header */}
         <div className="sticky top-0 bg-background border-b z-10 px-4 py-3">
-          <h1 className="text-xl font-bold">My Training</h1>
+          <h1 className="text-xl font-bold">{t('training.myTraining')}</h1>
         </div>
 
         {/* Stats Cards */}
@@ -98,10 +100,10 @@ export default function Training() {
         <div className="px-4 flex-1 overflow-auto">
           <Tabs defaultValue="all" className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="not_started">New</TabsTrigger>
-              <TabsTrigger value="in_progress">Active</TabsTrigger>
-              <TabsTrigger value="completed">Done</TabsTrigger>
+              <TabsTrigger value="all">{t('training.all')}</TabsTrigger>
+              <TabsTrigger value="not_started">{t('training.new')}</TabsTrigger>
+              <TabsTrigger value="in_progress">{t('training.active')}</TabsTrigger>
+              <TabsTrigger value="completed">{t('training.done')}</TabsTrigger>
             </TabsList>
 
             {['all', 'not_started', 'in_progress', 'completed'].map((tab) => (
@@ -122,7 +124,7 @@ export default function Training() {
                             <div className="flex-1">
                               {/* Training Module Title */}
                               <h3 className="font-semibold text-base mb-1">
-                                {training.module?.title || 'Unnamed Training'}
+                                {training.module?.title || t('training.unnamed')}
                               </h3>
                               
                               {/* Competency Badge */}
@@ -136,7 +138,7 @@ export default function Training() {
                               <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                                 {training.personalizedContent 
                                   ? training.personalizedContent.substring(0, 120) + '...'
-                                  : training.module?.description || 'No description available'}
+                                  : training.module?.description || t('training.noDescription')}
                               </p>
                             </div>
                             
@@ -146,7 +148,7 @@ export default function Training() {
                           {/* Progress Bar */}
                           <div className="space-y-1 mb-3">
                             <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Progress</span>
+                              <span>{t('training.progress')}</span>
                               <span className="font-semibold">{training.progressPercentage}%</span>
                             </div>
                             <Progress value={training.progressPercentage} className="h-2" />
@@ -161,18 +163,18 @@ export default function Training() {
                               <Calendar className="w-3 h-3" />
                               {training.status === 'completed' && training.completedAt ? (
                                 <span className="text-emerald-600 dark:text-emerald-400">
-                                  Completed {formatDate(training.completedAt)}
+                                  {t('training.completedOn')} {formatDate(training.completedAt)}
                                 </span>
                               ) : daysRemaining < 0 ? (
                                 <span className="text-red-600 dark:text-red-400">
-                                  Overdue by {Math.abs(daysRemaining)} days
+                                  {t('training.overdueBy')} {Math.abs(daysRemaining)} {t('training.days')}
                                 </span>
                               ) : daysRemaining === 0 ? (
                                 <span className="text-orange-600 dark:text-orange-400">
-                                  Due today
+                                  {t('training.dueToday')}
                                 </span>
                               ) : (
-                                <span>Due in {daysRemaining} days</span>
+                                <span>{t('training.dueIn')} {daysRemaining} {t('training.days')}</span>
                               )}
                             </div>
                           </div>
@@ -180,9 +182,9 @@ export default function Training() {
                           {/* Optional: Difficulty Level */}
                           {training.module?.difficultyLevel && (
                             <div className="mt-2 text-xs text-muted-foreground">
-                              Difficulty: <span className="capitalize">{training.module.difficultyLevel}</span>
+                              {t('training.difficulty')}: <span className="capitalize">{training.module.difficultyLevel}</span>
                               {training.module.estimatedDuration && (
-                                <> • Duration: {training.module.estimatedDuration}</>
+                                <> • {t('training.duration')}: {training.module.estimatedDuration}</>
                               )}
                             </div>
                           )}
@@ -195,10 +197,10 @@ export default function Training() {
                 {trainings.filter(t => tab === 'all' || t.status === tab).length === 0 && (
                   <div className="text-center py-12">
                     <BookOpen className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-                    <p className="text-muted-foreground">No trainings found</p>
+                    <p className="text-muted-foreground">{t('training.noTrainings')}</p>
                     {tab !== 'all' && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Try switching to another tab
+                        {t('training.trySwitching')}
                       </p>
                     )}
                   </div>
@@ -213,18 +215,20 @@ export default function Training() {
 }
 
 function TrainingStatusBadge({ status }: { status: string }) {
+  const { t } = useLanguage();
+  
   const config = {
     not_started: { 
       color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', 
-      label: 'Not Started' 
+      label: t('training.notStarted')
     },
     in_progress: { 
       color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', 
-      label: 'In Progress' 
+      label: t('training.inProgress')
     },
     completed: { 
-      color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', 
-      label: 'Completed' 
+      color: 'bg-emerald-100 text-emerald-700 dark:text-emerald-900/30 dark:text-emerald-400', 
+      label: t('training.completed')
     },
     skipped: {
       color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',

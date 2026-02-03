@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTraining } from "@/contexts/TrainingContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +17,7 @@ export default function TrainingFeedback() {
   const navigate = useNavigate();
   const { teacher } = useAuth();
   const { trainings } = useTraining();
+  const { t } = useLanguage();
   const { toast } = useToast();
 
   const [rating, setRating] = useState(0);
@@ -28,8 +30,8 @@ export default function TrainingFeedback() {
   const handleSubmit = async () => {
     if (!teacher || !assignmentId || !training) {
       toast({
-        title: "Error",
-        description: "Missing required information",
+        title: t('common.error'),
+        description: t('feedback.missingInfo'),
         variant: "destructive"
       });
       return;
@@ -37,8 +39,8 @@ export default function TrainingFeedback() {
 
     if (rating === 0 || wasHelpful === null) {
       toast({
-        title: "Please complete the form",
-        description: "Rating and helpfulness are required",
+        title: t('feedback.completeForm'),
+        description: t('feedback.ratingRequired'),
         variant: "destructive"
       });
       return;
@@ -74,8 +76,8 @@ export default function TrainingFeedback() {
       }
 
       toast({
-        title: "Thank you!",
-        description: "Your feedback has been submitted",
+        title: t('feedback.thankYou'),
+        description: t('feedback.submitted'),
       });
 
       setTimeout(() => {
@@ -85,8 +87,8 @@ export default function TrainingFeedback() {
     } catch (error) {
       console.error("Error submitting feedback:", error);
       toast({
-        title: "Submission Failed",
-        description: error instanceof Error ? error.message : "Failed to submit feedback",
+        title: t('feedback.submissionFailed'),
+        description: error instanceof Error ? error.message : t('feedback.submissionFailed'),
         variant: "destructive"
       });
     } finally {
@@ -98,9 +100,9 @@ export default function TrainingFeedback() {
     return (
       <MobileLayout>
         <div className="p-6 text-center">
-          <p className="text-muted-foreground">Training not found</p>
+          <p className="text-muted-foreground">{t('trainingDetail.notFound')}</p>
           <Button onClick={() => navigate('/training')} className="mt-4">
-            Back to Training
+            {t('trainingDetail.back')}
           </Button>
         </div>
       </MobileLayout>
@@ -116,7 +118,7 @@ export default function TrainingFeedback() {
             <CheckCircle className="h-8 w-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold mb-1">Training Complete!</h1>
+            <h1 className="text-2xl font-bold mb-1">{t('feedback.trainingComplete')}</h1>
             <p className="text-sm text-muted-foreground">
               {training.module?.title}
             </p>
@@ -125,7 +127,7 @@ export default function TrainingFeedback() {
 
         {/* Star Rating */}
         <div className="space-y-3">
-          <Label className="text-base">How would you rate this training?</Label>
+          <Label className="text-base">{t('feedback.rateTraining')}</Label>
           <div className="flex gap-2 justify-center py-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -145,18 +147,18 @@ export default function TrainingFeedback() {
             ))}
           </div>
           <p className="text-center text-xs text-muted-foreground">
-            {rating === 0 && "Tap to rate"}
-            {rating === 1 && "Poor"}
-            {rating === 2 && "Fair"}
-            {rating === 3 && "Good"}
-            {rating === 4 && "Very Good"}
-            {rating === 5 && "Excellent"}
+            {rating === 0 && t('feedback.tapToRate')}
+            {rating === 1 && t('feedback.poor')}
+            {rating === 2 && t('feedback.fair')}
+            {rating === 3 && t('feedback.good')}
+            {rating === 4 && t('feedback.veryGood')}
+            {rating === 5 && t('feedback.excellent')}
           </p>
         </div>
 
         {/* Was Helpful */}
         <div className="space-y-3">
-          <Label className="text-base">Did this help solve your issue?</Label>
+          <Label className="text-base">{t('feedback.helpSolve')}</Label>
           <div className="grid grid-cols-2 gap-3">
             <Button
               type="button"
@@ -166,7 +168,7 @@ export default function TrainingFeedback() {
               className="h-14"
             >
               <ThumbsUp className="mr-2 h-5 w-5" />
-              Yes
+              {t('feedback.yes')}
             </Button>
             <Button
               type="button"
@@ -176,7 +178,7 @@ export default function TrainingFeedback() {
               className="h-14"
             >
               <ThumbsDown className="mr-2 h-5 w-5" />
-              No
+              {t('feedback.no')}
             </Button>
           </div>
         </div>
@@ -184,11 +186,11 @@ export default function TrainingFeedback() {
         {/* Comment */}
         <div className="space-y-3">
           <Label htmlFor="comment" className="text-base">
-            Any additional feedback? <span className="text-muted-foreground text-sm">(Optional)</span>
+            {t('feedback.additionalFeedback')} <span className="text-muted-foreground text-sm">({t('feedback.optional')})</span>
           </Label>
           <Textarea 
             id="comment"
-            placeholder="Share your thoughts, suggestions, or what you learned..." 
+            placeholder={t('feedback.placeholder')}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={4}
@@ -205,16 +207,16 @@ export default function TrainingFeedback() {
           {submitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Submitting...
+              {t('feedback.submittingButton')}
             </>
           ) : (
-            "Submit Feedback"
+            t('feedback.submitButton')
           )}
         </Button>
 
         {(rating === 0 || wasHelpful === null) && (
           <p className="text-center text-xs text-muted-foreground">
-            Please provide a rating and indicate if the training was helpful
+            {t('feedback.provideRating')}
           </p>
         )}
       </div>

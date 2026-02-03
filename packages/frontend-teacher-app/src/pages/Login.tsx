@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +17,7 @@ export default function Login() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   
   const { login, hasCompletedOnboarding } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -23,15 +25,15 @@ export default function Login() {
     const newErrors: { email?: string; password?: string } = {};
     
     if (!email) {
-      newErrors.email = 'Email is required';
+      newErrors.email = t('login.emailRequired');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = 'Please enter a valid email';
+      newErrors.email = t('login.emailInvalid');
     }
     
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = t('login.passwordRequired');
     } else if (password.length < 4) {
-      newErrors.password = 'Password must be at least 4 characters';
+      newErrors.password = t('login.passwordMin');
     }
     
     setErrors(newErrors);
@@ -50,21 +52,21 @@ export default function Login() {
       
       if (success) {
         toast({
-          title: "Welcome back!",
-          description: "You've successfully logged in.",
+          title: t('login.welcomeBack'),
+          description: t('login.loginSuccess'),
         });
         navigate(hasCompletedOnboarding ? '/dashboard' : '/onboarding');
       } else {
         toast({
-          title: "Login failed",
-          description: "Please check your credentials and try again.",
+          title: t('login.loginFailed'),
+          description: t('login.checkCredentials'),
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
-        title: "Connection error",
-        description: "Unable to connect. Please check your network.",
+        title: t('login.connectionError'),
+        description: t('login.networkError'),
         variant: "destructive",
       });
     } finally {
@@ -78,23 +80,23 @@ export default function Login() {
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
           <MessageSquare className="h-8 w-8 text-primary-foreground" />
         </div>
-        <h1 className="mt-4 text-2xl font-bold text-foreground">GuruShikshan - Teacher App</h1>
-        <p className="mt-1 text-sm text-muted-foreground">DIET Feedback System</p>
+        <h1 className="mt-4 text-2xl font-bold text-foreground">GuruSikshan</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('login.subtitle')}</p>
       </div>
 
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-xl">Sign in</CardTitle>
-          <CardDescription>Enter your credentials to continue</CardDescription>
+          <CardTitle className="text-xl">{t('login.signIn')}</CardTitle>
+          <CardDescription>{t('login.enterCredentials')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('login.email')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="teacher@school.edu"
+                placeholder={t('login.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
@@ -106,12 +108,12 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('login.password')}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
+                  placeholder={t('login.passwordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
@@ -139,16 +141,16 @@ export default function Login() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {t('login.signingIn')}
                 </>
               ) : (
-                'Sign in'
+                t('login.signInButton')
               )}
             </Button>
           </form>
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            Use any email and password (min 4 chars) to login
+            {t('login.demoHint')}
           </p>
         </CardContent>
       </Card>

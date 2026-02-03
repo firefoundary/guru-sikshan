@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { IssueProvider } from "@/contexts/FeedbackContext"; // Changed from FeedbackProvider
 import { TrainingProvider } from "@/contexts/TrainingContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
@@ -222,11 +223,13 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <IssueProvider> {/* Changed from FeedbackProvider */}
-            <TrainingProvider>
-              <AppRoutes />
-            </TrainingProvider>
-          </IssueProvider>
+          <LanguageProvider>
+            <IssueProvider> {/* Changed from FeedbackProvider */}
+              <TrainingProvider>
+                <AppRoutes />
+              </TrainingProvider>
+            </IssueProvider>
+          </LanguageProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

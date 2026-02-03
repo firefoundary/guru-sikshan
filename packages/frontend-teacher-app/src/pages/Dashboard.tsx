@@ -6,32 +6,33 @@ import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PlusCircle, Clock, Eye, CheckCircle, MapPin } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function Dashboard() {
   const { teacher } = useAuth();
   const { pendingCount, reviewedCount, resolvedCount, issues } = useIssue();
   const { trainings } = useTraining();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const recentIssues = issues.slice(0, 3);
 
   const stats = [
     {
-      label: 'Pending',
-      count: pendingCount,
+      label: t('dashboard.pending'), 
       icon: Clock,
       color: 'text-amber-600 dark:text-amber-400',
       bgColor: 'bg-amber-100 dark:bg-amber-900/30',
     },
     {
-      label: 'Reviewed',
+      label: t('dashboard.reviewed'), 
       count: reviewedCount, 
       icon: Eye,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-100 dark:bg-blue-900/30',
     },
     {
-      label: 'Resolved',
+      label: t('dashboard.resolved'), 
       count: resolvedCount,
       icon: CheckCircle,
       color: 'text-emerald-600 dark:text-emerald-400',
@@ -62,7 +63,7 @@ export default function Dashboard() {
         {/* Welcome Header */}
         <div>
           <h1 className="text-2xl font-bold">
-            Welcome back, <span className="text-primary">{teacher?.name}</span>
+            {t('dashboard.welcome')}, <span className="text-primary">{teacher?.name}</span>
           </h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
             <MapPin className="w-4 h-4" />
@@ -77,7 +78,7 @@ export default function Dashboard() {
           size="lg"
         >
           <PlusCircle className="w-5 h-5 mr-2" />
-          Report an Issue
+          {t('dashboard.reportNew')} 
         </Button>
 
         {/* Stats Grid */}
@@ -98,13 +99,15 @@ export default function Dashboard() {
         {/* Recent Activity */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">Recent Activity</h2>
+            <h2 className="text-lg font-semibold">
+              {t('dashboard.recentIssues')} 
+            </h2>
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={() => navigate('/history')}
             >
-              View All
+              {t('dashboard.viewAll')} 
             </Button>
           </div>
 
@@ -120,7 +123,7 @@ export default function Dashboard() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm mb-1">
-                          {issue.category.replace('_', ' ')} Issue
+                          {t(`category.${issue.category}`)} Issue
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">
                           {issue.description}
@@ -129,10 +132,9 @@ export default function Dashboard() {
                           {issue.createdAt.toLocaleDateString()}
                         </div>
                       </div>
-                      {/* Show if training was assigned */}
                       {getTrainingFromIssue(issue.id) && (
                         <div className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-1 rounded">
-                          Training Assigned
+                          {t('status.training_assigned')} 
                         </div>
                       )}
                     </div>
@@ -143,9 +145,11 @@ export default function Dashboard() {
           ) : (
             <Card>
               <CardContent className="p-6 text-center">
-                <div className="text-muted-foreground mb-2">No issues reported yet</div>
+                <div className="text-muted-foreground mb-2">
+                  {t('dashboard.noIssues')} 
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  Start by reporting your first issue
+                  {t('dashboard.reportNew')} 
                 </p>
               </CardContent>
             </Card>

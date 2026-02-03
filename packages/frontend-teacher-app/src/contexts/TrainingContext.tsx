@@ -56,22 +56,32 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ RESET TRAININGS WHEN TEACHER CHANGES
   useEffect(() => {
+    console.log('👤 Teacher changed:', teacher?.id, teacher?.name);
+    
     if (isAuthenticated && teacher?.id) {
       console.log('🎓 Fetching training assignments for teacher:', teacher.id);
       refreshTrainings();
     } else {
+      // ✅ CLEAR TRAININGS IF NO TEACHER
+      console.log('🧹 Clearing trainings (no teacher)');
       setTrainings([]);
+      setError(null);
     }
-  }, [isAuthenticated, teacher?.id]);
+  }, [teacher?.id]); // ✅ DEPENDENCY ON teacher.id ONLY
 
   const refreshTrainings = async () => {
-    if (!teacher?.id) return;
+    if (!teacher?.id) {
+      console.log('⚠️ Cannot refresh trainings: no teacher ID');
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log('📡 Fetching trainings from API for teacher:', teacher.id);
       const response = await fetch(`${API_URL}/api/teacher/training/${teacher.id}`);
       const data = await response.json();
 
@@ -112,17 +122,20 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
         }));
 
         setTrainings(parsedTrainings);
-        console.log(`✅ Loaded ${parsedTrainings.length} training assignments`);
+        console.log(`✅ Loaded ${parsedTrainings.length} training assignments for teacher ${teacher.id}`);
       }
     } catch (err) {
       console.error('❌ Error fetching trainings:', err);
       setError(err instanceof Error ? err.message : 'Failed to load trainings');
+      setTrainings([]); // ✅ Clear on error
     } finally {
       setIsLoading(false);
     }
   };
 
   const updateProgress = async (trainingId: string, percentage: number) => {
+    console.log('📊 Updating progress for training:', trainingId, 'to', percentage);
+    
     try {
       const newStatus: TrainingStatus = 
         percentage === 0 ? 'not_started' :
@@ -153,10 +166,12 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) throw new Error('Failed to update progress');
 
+      console.log('✅ Progress updated successfully');
+
       // Refresh to get latest data
       await refreshTrainings();
     } catch (err) {
-      console.error('Error updating progress:', err);
+      console.error('❌ Error updating progress:', err);
       setError(err instanceof Error ? err.message : 'Failed to update progress');
     }
   };

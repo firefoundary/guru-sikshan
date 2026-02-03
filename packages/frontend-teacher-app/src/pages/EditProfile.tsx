@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext'; // ✅ Add this
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +16,7 @@ export default function EditProfile() {
   const navigate = useNavigate();
   const { teacher } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage(); // ✅ Add this
   
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -40,8 +42,8 @@ export default function EditProfile() {
     
     // In a real app, you would update the user profile here
     toast({
-      title: "Profile Updated",
-      description: "Your profile has been successfully updated.",
+      title: t('profile.updateSuccess'), 
+      description: t('profile.updateSuccessMsg'), 
     });
     
     setIsLoading(false);
@@ -67,10 +69,12 @@ export default function EditProfile() {
               <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <h1 className="font-semibold text-foreground">Edit Profile</h1>
+              <h1 className="font-semibold text-foreground">
+                {t('profile.editProfile')}
+              </h1>
             </div>
             <Button onClick={handleSave} disabled={isLoading} size="sm">
-              {isLoading ? 'Saving...' : 'Save'}
+              {isLoading ? t('common.saving') : t('common.save')} 
             </Button>
           </div>
         </div>
@@ -90,7 +94,9 @@ export default function EditProfile() {
                   <Camera className="h-4 w-4" />
                 </button>
               </div>
-              <p className="text-sm text-muted-foreground">Tap to change photo</p>
+              <p className="text-sm text-muted-foreground">
+                {t('profile.changePhoto')} 
+              </p>
             </CardContent>
           </Card>
 
@@ -99,22 +105,22 @@ export default function EditProfile() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium">
                 <User className="h-4 w-4" />
-                Personal Information
+                {t('profile.personalInfo')} 
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">{t('profile.fullName')}</Label> 
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => handleChange('name', e.target.value)}
-                  placeholder="Enter your full name"
+                  placeholder={t('profile.fullNamePlaceholder')}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email">{t('profile.emailAddress')}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -122,16 +128,18 @@ export default function EditProfile() {
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleChange('email', e.target.value)}
-                    placeholder="Enter your email"
+                    placeholder={t('profile.emailPlaceholder')} 
                     className="pl-10"
                     disabled
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('profile.emailCannotChange')} 
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone">{t('profile.phoneNumber')}</Label> 
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -139,19 +147,19 @@ export default function EditProfile() {
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => handleChange('phone', e.target.value)}
-                    placeholder="Enter your phone number"
+                    placeholder={t('profile.phonePlaceholder')} 
                     className="pl-10"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
+                <Label htmlFor="bio">{t('profile.bio')}</Label> 
                 <Textarea
                   id="bio"
                   value={formData.bio}
                   onChange={(e) => handleChange('bio', e.target.value)}
-                  placeholder="Tell us about yourself..."
+                  placeholder={t('profile.bioPlaceholder')} 
                   rows={3}
                 />
               </div>
@@ -163,58 +171,60 @@ export default function EditProfile() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium">
                 <Briefcase className="h-4 w-4" />
-                Professional Information
+                {t('profile.professionalInfo')} {/* ✅ Use translation */}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="qualification">Qualification</Label>
+                <Label htmlFor="qualification">{t('profile.qualification')}</Label> 
                 <div className="relative">
                   <GraduationCap className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="qualification"
                     value={formData.qualification}
                     onChange={(e) => handleChange('qualification', e.target.value)}
-                    placeholder="Your qualifications"
+                    placeholder={t('profile.qualificationPlaceholder')} 
                     className="pl-10"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="experience">Years of Experience</Label>
+                <Label htmlFor="experience">{t('profile.experience')}</Label> 
                 <Input
                   id="experience"
                   value={formData.experience}
                   onChange={(e) => handleChange('experience', e.target.value)}
-                  placeholder="Years of experience"
+                  placeholder={t('profile.experiencePlaceholder')}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="subjects">Subjects Taught</Label>
+                <Label htmlFor="subjects">{t('profile.subjects')}</Label> 
                 <Input
                   id="subjects"
                   value={formData.subjects}
                   onChange={(e) => handleChange('subjects', e.target.value)}
-                  placeholder="Subjects you teach"
+                  placeholder={t('profile.subjectsPlaceholder')} 
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Assigned Cluster</Label>
+                <Label htmlFor="address">{t('profile.assignedCluster')}</Label> 
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="address"
                     value={formData.address}
                     onChange={(e) => handleChange('address', e.target.value)}
-                    placeholder="Your assigned cluster"
+                    placeholder={t('profile.clusterPlaceholder')}
                     className="pl-10"
                     disabled
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Contact admin to change cluster</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('profile.contactAdminCluster')} 
+                </p>
               </div>
             </CardContent>
           </Card>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useFeedback, IssueCategory } from '@/contexts/FeedbackContext';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle, Paperclip, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
 // Type definition for API response
 interface FeedbackSubmissionResult {
@@ -48,10 +49,11 @@ const clusters = [
 export default function ReportIssue() {
   const { teacher } = useAuth();
   const { submitIssue } = useFeedback();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState('academic')
   const [cluster, setCluster] = useState(teacher?.cluster || '');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,13 +66,13 @@ export default function ReportIssue() {
     const newErrors: { category?: string; description?: string } = {};
     
     if (!category) {
-      newErrors.category = 'Please select a category';
+      newErrors.category = t('report.categoryRequired');
     }
     
     if (!description) {
-      newErrors.description = 'Description is required';
+      newErrors.description = t('report.descriptionRequired');
     } else if (description.length < 20) {
-      newErrors.description = 'Please provide at least 20 characters';
+      newErrors.description = t('report.descriptionMin');
     }
     
     setErrors(newErrors);
@@ -78,8 +80,23 @@ export default function ReportIssue() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('🟢🟢🟢 HANDLESUBMIT CALLED!');
+    console.log('Event:', e);
+    console.log('Teacher:', teacher);
+    console.log('Description:', description);
+    
     e.preventDefault();
-    if (!validate() || !teacher) return;
+    
+    console.log('🔵 After preventDefault');
+    
+    if (!validate() || !teacher) {
+      console.log('❌ Validation failed or no teacher');
+      console.log('Validate result:', validate());
+      console.log('Teacher exists:', !!teacher);
+      return;
+    }
+    
+    console.log('✅ Validation passed, starting submission...');
     
     setIsSubmitting(true);
     
@@ -102,11 +119,11 @@ export default function ReportIssue() {
         console.log('Training already assigned - showing appropriate screen');
         
         setIsAlreadyAssigned(true);
-        setAssignmentMessage(result.message || 'Training already assigned for this issue');
+        setAssignmentMessage(result.message || t('report.checkTraining'));
         
         toast({
-          title: "Training Already Assigned",
-          description: result.reason || "You already have training for this competency area.",
+          title: t('report.alreadyAssigned'),
+          description: result.reason || t('report.checkTraining'),
         });
         
         setTimeout(() => {
@@ -126,8 +143,8 @@ export default function ReportIssue() {
         setIsSuccess(true);
         
         toast({
-          title: "Issue reported successfully!",
-          description: "Personalized training has been assigned to you.",
+          title: t('report.submitSuccess'),
+          description: t('report.personalizedAssigned'),
         });
         
         setTimeout(() => {
@@ -148,8 +165,8 @@ export default function ReportIssue() {
       console.error('Submit error:', error);
       
       toast({
-        title: "Failed to submit",
-        description: "Please check your connection and try again.",
+        title: t('report.submitFailed'),
+        description: t('report.checkConnection'),
         variant: "destructive",
       });
     } finally {
@@ -168,13 +185,13 @@ export default function ReportIssue() {
             </div>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Training Already Assigned!
+            {t('report.alreadyAssigned')}
           </h2>
           <p className="text-gray-600 mb-2">
             {assignmentMessage}
           </p>
           <p className="text-sm text-gray-500">
-            Check your Training tab to continue.
+            {t('report.checkTraining')}
           </p>
         </div>
       </MobileLayout>
@@ -192,13 +209,13 @@ export default function ReportIssue() {
             </div>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Issue Reported!
+            {t('report.issueReported')}
           </h2>
           <p className="text-gray-600 mb-2">
-            Your Issue has been submitted successfully.
+            {t('report.submittedSuccess')}
           </p>
           <p className="text-sm text-gray-500">
-            Personalized training assigned!
+            {t('report.personalizedAssigned')}
           </p>
         </div>
       </MobileLayout>
@@ -211,13 +228,13 @@ export default function ReportIssue() {
       <div className="p-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Report an Issue</CardTitle>
+            <CardTitle className="text-lg">{t('report.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Teacher Info */}
               <div className="bg-muted/50 p-3 rounded-md">
-                <p className="text-sm text-muted-foreground">Reporting as</p>
+                <p className="text-sm text-muted-foreground">{t('report.reportingAs')}</p>
                 <p className="font-medium">{teacher?.name}</p>
                 <p className="text-sm text-muted-foreground">{teacher?.employeeId}</p>
               </div>
@@ -225,13 +242,13 @@ export default function ReportIssue() {
               {/* Description */}
               <div>
                 <Label>
-                  Description * 
+                  {t('report.descriptionLabel')} * 
                   <span className="text-muted-foreground ml-2">({description.length}/500)</span>
                 </Label>
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value.slice(0, 500))}
-                  placeholder="Describe the issue in detail..."
+                  placeholder={t('report.descriptionPlaceholder')}
                   rows={5}
                   className={errors.description ? 'border-destructive' : ''}
                 />
@@ -241,16 +258,28 @@ export default function ReportIssue() {
               </div>
 
               {/* Submit */}
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isSubmitting}
+                onClick={(e) => {
+                  console.log('🔴 BUTTON CLICKED!');
+                  console.log('  Teacher:', teacher?.id);
+                  console.log('  Description:', description);
+                  console.log('  isSubmitting:', isSubmitting);
+                  console.log('  Event:', e);
+                }}
+              >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Submitting...
+                    {t('report.submitting')}
                   </>
                 ) : (
-                  'Submit Issue'
+                  t('report.submitButton')
                 )}
               </Button>
+
             </form>
           </CardContent>
         </Card>

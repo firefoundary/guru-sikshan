@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Home, PlusCircle, ClipboardList, Settings, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -8,17 +9,26 @@ interface MobileLayoutProps {
   showNav?: boolean;
 }
 
-const navItems = [
-  { path: '/dashboard', icon: Home, label: 'Home' },
-  { path: '/training', icon: GraduationCap, label: 'Training' },
-  { path: '/report', icon: PlusCircle, label: 'Report' },
-  { path: '/history', icon: ClipboardList, label: 'History' },
-  { path: '/settings', icon: Settings, label: 'Settings' },
+interface NavItem {
+  path: string;
+  icon: React.ElementType;
+  labelKey: string;
+}
+
+const getNavItems = (t: (key: string) => string): NavItem[] => [
+  { path: '/dashboard', icon: Home, labelKey: 'nav.home' },
+  { path: '/training', icon: GraduationCap, labelKey: 'nav.training' },
+  { path: '/report', icon: PlusCircle, labelKey: 'nav.report' },
+  { path: '/history', icon: ClipboardList, labelKey: 'nav.history' },
+  { path: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ];
 
 export function MobileLayout({ children, showNav = true }: MobileLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  
+  const navItems = getNavItems(t);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -49,7 +59,7 @@ export function MobileLayout({ children, showNav = true }: MobileLayoutProps) {
                     "h-6 w-6 transition-transform",
                     isActive && "scale-110"
                   )} />
-                  <span className="text-xs font-medium">{item.label}</span>
+                  <span className="text-xs font-medium">{t(item.labelKey)}</span>
                 </button>
               );
             })}

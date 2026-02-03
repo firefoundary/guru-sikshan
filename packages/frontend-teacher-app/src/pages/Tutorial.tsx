@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -18,89 +19,90 @@ import { cn } from '@/lib/utils';
 
 interface TutorialStep {
   id: number;
-  title: string;
-  description: string;
+  titleKey: string;
+  descriptionKey: string;
   icon: React.ElementType;
-  details: string[];
+  detailsKeys: string[];
 }
 
 const tutorialSteps: TutorialStep[] = [
   {
     id: 1,
-    title: 'Welcome to TeacherVoice',
-    description: 'Your platform for reporting school issues and tracking their resolution.',
+    titleKey: 'tutorial.welcome.title',
+    descriptionKey: 'tutorial.welcome.desc',
     icon: Home,
-    details: [
-      'Report issues directly from your mobile device',
-      'Track the status of your submitted reports',
-      'Get updates when issues are resolved',
-      'Access training materials assigned to you',
+    detailsKeys: [
+      'tutorial.welcome.detail1',
+      'tutorial.welcome.detail2',
+      'tutorial.welcome.detail3',
+      'tutorial.welcome.detail4',
     ],
   },
   {
     id: 2,
-    title: 'Reporting Issues',
-    description: 'Learn how to submit and track school-related issues.',
+    titleKey: 'tutorial.reporting.title',
+    descriptionKey: 'tutorial.reporting.desc',
     icon: FileText,
-    details: [
-      'Tap "Report an Issue" from the dashboard',
-      'Select the appropriate category (Academic, Infrastructure, etc.)',
-      'Provide a detailed description of the issue',
-      'Submit and track your report in the History section',
+    detailsKeys: [
+      'tutorial.reporting.detail1',
+      'tutorial.reporting.detail2',
+      'tutorial.reporting.detail3',
+      'tutorial.reporting.detail4',
     ],
   },
   {
     id: 3,
-    title: 'Training Modules',
-    description: 'Access and complete your assigned training materials.',
+    titleKey: 'tutorial.training.title',
+    descriptionKey: 'tutorial.training.desc',
     icon: GraduationCap,
-    details: [
-      'View all assigned trainings in the Training tab',
-      'Track your progress through each module',
-      'Download training materials for offline access',
-      'Provide feedback after completing a training',
+    detailsKeys: [
+      'tutorial.training.detail1',
+      'tutorial.training.detail2',
+      'tutorial.training.detail3',
+      'tutorial.training.detail4',
     ],
   },
   {
     id: 4,
-    title: 'Your History',
-    description: 'Review all your submitted feedback and their current status.',
+    titleKey: 'tutorial.history.title',
+    descriptionKey: 'tutorial.history.desc',
     icon: BookOpen,
-    details: [
-      'Filter reports by status (Pending, In Review, Resolved)',
-      'View detailed information about each submission',
-      'See admin remarks and responses',
-      'Track the timeline of your reports',
+    detailsKeys: [
+      'tutorial.history.detail1',
+      'tutorial.history.detail2',
+      'tutorial.history.detail3',
+      'tutorial.history.detail4',
     ],
   },
   {
     id: 5,
-    title: 'Profile & Settings',
-    description: 'Customize your experience and manage your profile.',
+    titleKey: 'tutorial.settings.title',
+    descriptionKey: 'tutorial.settings.desc',
     icon: Settings,
-    details: [
-      'Update your personal information',
-      'Toggle dark mode for comfortable viewing',
-      'Manage notification preferences',
-      'Access help and support resources',
+    detailsKeys: [
+      'tutorial.settings.detail1',
+      'tutorial.settings.detail2',
+      'tutorial.settings.detail3',
+      'tutorial.settings.detail4',
     ],
   },
   {
     id: 6,
-    title: 'Providing Feedback',
-    description: 'Share your thoughts on completed trainings.',
+    titleKey: 'tutorial.feedback.title',
+    descriptionKey: 'tutorial.feedback.desc',
     icon: MessageSquare,
-    details: [
-      'Complete a training module to unlock feedback',
-      'Rate the training on a 5-star scale',
-      'Add optional comments to help improve content',
-      'Your feedback helps us create better trainings',
+    detailsKeys: [
+      'tutorial.feedback.detail1',
+      'tutorial.feedback.detail2',
+      'tutorial.feedback.detail3',
+      'tutorial.feedback.detail4',
     ],
   },
 ];
 
 export default function Tutorial() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
@@ -139,12 +141,12 @@ export default function Tutorial() {
       <div className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm">
         <div className="flex items-center justify-between p-4">
           <Button variant="ghost" size="sm" onClick={handleSkip}>
-            Skip Tutorial
+            {t('tutorial.skip')}
           </Button>
           <span className="text-sm text-muted-foreground">
-            {currentStep + 1} of {tutorialSteps.length}
+            {currentStep + 1} {t('tutorial.of')} {tutorialSteps.length}
           </span>
-          <div className="w-20" /> {/* Spacer for alignment */}
+          <div className="w-20" />
         </div>
         <div className="px-4 pb-4">
           <Progress value={progress} className="h-2" />
@@ -177,18 +179,18 @@ export default function Tutorial() {
             <StepIcon className="h-10 w-10 text-primary" />
           </div>
           
-          <h2 className="mb-3 text-2xl font-bold text-foreground">{step.title}</h2>
-          <p className="mb-6 text-muted-foreground">{step.description}</p>
+          <h2 className="mb-3 text-2xl font-bold text-foreground">{t(step.titleKey)}</h2>
+          <p className="mb-6 text-muted-foreground">{t(step.descriptionKey)}</p>
         </div>
 
         {/* Details Card */}
         <Card>
           <CardContent className="py-4">
             <ul className="space-y-3">
-              {step.details.map((detail, index) => (
+              {step.detailsKeys.map((detailKey, index) => (
                 <li key={index} className="flex items-start gap-3">
                   <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-                  <span className="text-sm text-foreground">{detail}</span>
+                  <span className="text-sm text-foreground">{t(detailKey)}</span>
                 </li>
               ))}
             </ul>
@@ -206,17 +208,17 @@ export default function Tutorial() {
             className="flex-1"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Previous
+            {t('tutorial.previous')}
           </Button>
           <Button onClick={handleNext} className="flex-1">
             {isLastStep ? (
               <>
-                Get Started
+                {t('tutorial.getStarted')}
                 <CheckCircle className="ml-2 h-4 w-4" />
               </>
             ) : (
               <>
-                Next
+                {t('tutorial.next')}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </>
             )}

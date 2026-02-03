@@ -6,6 +6,7 @@ export interface Teacher {
   email: string;
   cluster: string;
   employeeId: string;
+  preferredLanguage?: 'en' | 'hi' | 'kn';
 }
 
 interface AuthContextType {
@@ -35,7 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (stored) {
       try {
-        setTeacher(JSON.parse(stored));
+        const parsedTeacher = JSON.parse(stored);
+        console.log('📖 Restored teacher session:', parsedTeacher.id, parsedTeacher.name);
+        setTeacher(parsedTeacher);
       } catch (e) {
         console.error('Error parsing stored session:', e);
         localStorage.removeItem('teacher_session');
@@ -50,10 +53,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    console.log('🔐 Login attempt for:', email);
     setIsLoading(true);
     setError(null);
     
     try {
+      // ✅ CLEAR ALL EXISTING STATE FIRST
+      localStorage.clear();
+      sessionStorage.clear();
+      setTeacher(null);
+      
       const response = await fetch(`${API_URL}/api/teacher/auth/login`, {
         method: 'POST',
         headers: {
@@ -72,8 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.success && data.teacher) {
+        console.log('✅ Login successful for teacher:', data.teacher.id, data.teacher.name);
+        
+        // ✅ SET NEW TEACHER DATA
         setTeacher(data.teacher);
         localStorage.setItem('teacher_session', JSON.stringify(data.teacher));
+        
         setIsLoading(false);
         return true;
       }
@@ -90,9 +103,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    console.log('🚪 Logging out teacher:', teacher?.id);
+    
+    // ✅ CLEAR ALL STATE
     setTeacher(null);
-    localStorage.removeItem('teacher_session');
     setError(null);
+    setHasCompletedOnboarding(false);
+    
+    // ✅ CLEAR ALL STORAGE
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // ✅ FORCE HARD RELOAD TO CLEAR ALL REACT STATE
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 100);
   };
 
   const completeOnboarding = () => {

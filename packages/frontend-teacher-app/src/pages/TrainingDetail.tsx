@@ -1,5 +1,6 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom'; // ✅ ADD useLocation
 import { useTraining } from '@/contexts/TrainingContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ export default function TrainingDetail() {
   const navigate = useNavigate();
   const location = useLocation(); // ✅ ADD THIS
   const { getTrainingById, updateProgress, isLoading } = useTraining();
+  const { t } = useLanguage();
   const [localProgress, setLocalProgress] = useState(0);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -110,12 +112,12 @@ export default function TrainingDetail() {
             className="mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
+            {t('trainingDetail.back')}
           </Button>
           <Card>
             <CardContent className="p-6 text-center">
               <p className="text-muted-foreground">
-                {!training ? 'Training not found' : 'Loading...'}
+                {!training ? t('trainingDetail.notFound') : t('common.loading')}
               </p>
             </CardContent>
           </Card>
@@ -139,10 +141,10 @@ export default function TrainingDetail() {
             className="mb-2"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
+            {t('trainingDetail.back')}
           </Button>
           <h1 className="text-2xl font-bold">
-            {training.module?.title || 'Training Details'}
+            {training.module?.title || t('trainingDetail.trainingDetails')}
           </h1>
         </div>
 
@@ -151,11 +153,11 @@ export default function TrainingDetail() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center justify-between">
-              <span>Your Progress</span>
+              <span>{t('trainingDetail.yourProgress')}</span>
               <Badge className={getStatusColor(training.status)}>
-                {training.status === 'not_started' && 'Not Started'}
-                {training.status === 'in_progress' && 'In Progress'}
-                {training.status === 'completed' && 'Completed'}
+                {training.status === 'not_started' && t('training.notStarted')}
+                {training.status === 'in_progress' && t('training.inProgress')}
+                {training.status === 'completed' && t('training.completed')}
                 {training.status === 'skipped' && 'Skipped'}
               </Badge>
             </CardTitle>
@@ -164,7 +166,7 @@ export default function TrainingDetail() {
             {/* Progress Bar */}
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-muted-foreground">Completion</span>
+                <span className="text-muted-foreground">{t('trainingDetail.completion')}</span>
                 <span className="font-medium">{currentProgress}%</span>
               </div>
               <Progress value={currentProgress} className="h-2" />
@@ -174,7 +176,7 @@ export default function TrainingDetail() {
             {training.status !== 'completed' && (
               <div className="space-y-2">
                 <label className="text-sm text-muted-foreground">
-                  Update your progress:
+                  {t('trainingDetail.updateProgress')}
                 </label>
                 <Slider
                   value={[localProgress]}
@@ -185,7 +187,7 @@ export default function TrainingDetail() {
                   className="w-full"
                 />
                 {isUpdating && (
-                  <p className="text-xs text-muted-foreground">Saving...</p>
+                  <p className="text-xs text-muted-foreground">{t('common.saving')}</p>
                 )}
               </div>
             )}
@@ -198,14 +200,14 @@ export default function TrainingDetail() {
                 disabled={isUpdating}
               >
                 <CheckCircle2 className="w-4 h-4 mr-2" />
-                Mark as Complete
+                {t('trainingDetail.markComplete')}
               </Button>
             )}
 
             {training.status === 'completed' && training.completedAt && (
               <div className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
-                Completed on {formatDate(training.completedAt)}
+                {t('trainingDetail.completedOn')} {formatDate(training.completedAt)}
               </div>
             )}
           </CardContent>
@@ -216,7 +218,7 @@ export default function TrainingDetail() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
-              Training Content
+              {t('trainingDetail.trainingContent')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -233,7 +235,7 @@ export default function TrainingDetail() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {training.module?.description || 'No content available'}
+                {training.module?.description || t('trainingDetail.noContent')}
               </p>
             )}
 
@@ -245,7 +247,7 @@ export default function TrainingDetail() {
                 onClick={() => window.open(training.module?.videoUrl, '_blank')}
               >
                 <PlayCircle className="w-4 h-4 mr-2" />
-                Watch Training Video
+                {t('trainingDetail.watchVideo')}
               </Button>
             )}
           </CardContent>
@@ -256,7 +258,7 @@ export default function TrainingDetail() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Award className="w-5 h-5" />
-              Training Information
+              {t('trainingDetail.trainingInfo')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -265,7 +267,7 @@ export default function TrainingDetail() {
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground flex items-center gap-1">
                   <Clock className="w-4 h-4" />
-                  Duration:
+                  {t('training.duration')}:
                 </span>
                 <span className="font-medium">{training.module.estimatedDuration}</span>
               </div>
@@ -275,19 +277,19 @@ export default function TrainingDetail() {
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
-                Assigned on:
+                {t('trainingDetail.assignedOn')}
               </span>
               <span className="font-medium">{formatDate(training.assignedDate)}</span>
             </div>
 
             {/* Due Date */}
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Due date:</span>
+              <span className="text-muted-foreground">{t('trainingDetail.dueDate')}</span>
               <span className={`font-medium ${daysRemaining < 0 ? 'text-destructive' : ''}`}>
                 {formatDate(training.dueDate)}
-                {daysRemaining < 0 && ` (${Math.abs(daysRemaining)} days overdue)`}
-                {daysRemaining === 0 && ' (Due today)'}
-                {daysRemaining > 0 && ` (${daysRemaining} days remaining)`}
+                {daysRemaining < 0 && ` (${Math.abs(daysRemaining)} ${t('trainingDetail.daysOverdue')})`}
+                {daysRemaining === 0 && ` (${t('training.dueToday')})`}
+                {daysRemaining > 0 && ` (${daysRemaining} ${t('trainingDetail.daysRemaining')})`}
               </span>
             </div>
 
@@ -303,8 +305,8 @@ export default function TrainingDetail() {
         >
           <MessageSquare className="w-4 h-4 mr-2" />
           {training.status === 'completed'
-            ? 'Share Feedback on Training'
-            : 'Complete training to provide feedback'}
+            ? t('trainingDetail.shareFeedback')
+            : t('trainingDetail.completeToFeedback')}
         </Button>
       </div>
     </MobileLayout>
