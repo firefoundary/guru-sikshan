@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MessageSquare, Loader2, Eye, EyeOff, Globe } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -17,9 +20,18 @@ export default function Login() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   
   const { login, hasCompletedOnboarding } = useAuth();
-  const { t } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // ✅ Language state synced with context
+  const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'hi' | 'kn'>(language);
+
+  const languages = [
+    { value: 'en' as const, label: 'English', nativeLabel: 'English' },
+    { value: 'hi' as const, label: 'Hindi', nativeLabel: 'हिंदी' },
+    { value: 'kn' as const, label: 'Kannada', nativeLabel: 'ಕನ್ನಡ' },
+  ];
 
   const validate = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -48,6 +60,36 @@ export default function Login() {
     setIsSubmitting(true);
     
     try {
+      // ✅ Send language preference with login
+      const response = await fetch(`${API_URL}/api/teacher/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          email, 
+          password,
+          preferred_language: selectedLanguage
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        toast({
+          title: t('login.loginFailed'),
+          description: data.error || t('login.checkCredentials'),
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // ✅ Update language in context
+      setLanguage(selectedLanguage);
+      
+      // ✅ Complete login through context
       const success = await login(email, password);
       
       if (success) {
@@ -64,6 +106,7 @@ export default function Login() {
         });
       }
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: t('login.connectionError'),
         description: t('login.networkError'),
@@ -91,6 +134,38 @@ export default function Login() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* ✅ Language Selector - FIRST */}
+            <div className="space-y-2">
+              <Label htmlFor="language" className="flex items-center gap-2">
+                <Globe className="h-4 w-4" />
+                Select Language
+              </Label>
+              <Select 
+                value={selectedLanguage} 
+                onValueChange={(value: 'en' | 'hi' | 'kn') => {
+                  setSelectedLanguage(value);
+                  setLanguage(value); // Update immediately for UI
+                }}
+              >
+                <SelectTrigger id="language">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {languages.map((lang) => (
+                    <SelectItem key={lang.value} value={lang.value}>
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium">{lang.nativeLabel}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({lang.label})
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Email */}
             <div className="space-y-2">
               <Label htmlFor="email">{t('login.email')}</Label>
               <Input
@@ -107,6 +182,7 @@ export default function Login() {
               )}
             </div>
 
+            {/* Password */}
             <div className="space-y-2">
               <Label htmlFor="password">{t('login.password')}</Label>
               <div className="relative">
@@ -123,6 +199,7 @@ export default function Login() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -149,9 +226,12 @@ export default function Login() {
             </Button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            {t('login.demoHint')}
-          </p>
+          {/* Demo Hint */}
+          <div className="mt-6 pt-4 border-t">
+            <p className="text-center text-xs text-muted-foreground mb-2">
+              {t('login.demoHint') || 'Demo Accounts'}
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -23,31 +23,83 @@ router.get('/test-ai-config', (req, res) => {
   });
 });
 
+// ✅ UPDATED LOGIN WITH LANGUAGE SUPPORT
 router.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+  const { email, password, preferred_language } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'Email and password are required' 
+    });
+  }
 
   try {
     const { data: teacher, error } = await supabase
       .from('teachers')
       .select('*')
-      .eq('email', email)
+      .eq('email', email.toLowerCase().trim())
       .single();
 
-    if (error || !teacher) return res.status(401).json({ error: 'Invalid credentials' });
+    if (error || !teacher) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Invalid credentials' 
+      });
+    }
 
     const isValidPassword = await bcrypt.compare(password, teacher.password_hash);
-    if (!isValidPassword) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!isValidPassword) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Invalid credentials' 
+      });
+    }
+
+    // ✅ UPDATE PREFERRED LANGUAGE IF PROVIDED
+    if (preferred_language && ['en', 'hi', 'kn'].includes(preferred_language)) {
+      const { error: updateError } = await supabase
+        .from('teachers')
+        .update({ 
+          preferred_language,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', teacher.id);
+
+      if (updateError) {
+        console.warn('Failed to update language preference:', updateError);
+      } else {
+        teacher.preferred_language = preferred_language;
+        console.log(`✅ Updated language preference for ${teacher.name} to ${preferred_language}`);
+      }
+    }
 
     const { password_hash, ...teacherData } = teacher;
-    res.json({ success: true, teacher: teacherData });
+    
+    // ✅ Return with camelCase for frontend
+    res.json({ 
+      success: true, 
+      teacher: {
+        id: teacherData.id,
+        name: teacherData.name,
+        email: teacherData.email,
+        cluster: teacherData.cluster,
+        employeeId: teacherData.employee_id,
+        preferredLanguage: teacherData.preferred_language || 'en',
+        createdAt: teacherData.created_at,
+        updatedAt: teacherData.updated_at
+      }
+    });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
-// ==================== ISSUES ENDPOINTS (was FEEDBACK) ====================
+// ==================== ISSUES ENDPOINTS ====================
 
 router.get('/issues/teacher/:teacherId', async (req, res) => {
   const { teacherId } = req.params;
@@ -66,9 +118,9 @@ router.get('/issues/teacher/:teacherId', async (req, res) => {
       throw error;
     }
 
-    console.log(`Found ${data?.length || 0} rows for THIS teacher.`);
+    console.log(`Found ${data?.length || 0} issues for this teacher.`);
     
-    const issues = data.map(item => ({
+    const issues = (data || []).map(item => ({
       id: item.id,
       teacherId: item.teacher_id,
       cluster: item.cluster,
@@ -83,31 +135,52 @@ router.get('/issues/teacher/:teacherId', async (req, res) => {
     res.json({ success: true, issues });
   } catch (error) {
     console.error('Get issues error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
-// Changed: /feedback/:id -> /issues/:id
 router.get('/issues/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    // Changed: table('feedback') -> table('issues')
-    const { data, error } = await supabase.from('issues').select('*').eq('id', id).single();
-    if (error || !data) return res.status(404).json({ error: 'Issue not found' });
+    const { data, error } = await supabase
+      .from('issues')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error || !data) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Issue not found' 
+      });
+    }
+    
     res.json({ success: true, issue: data });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Get issue error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
-// Changed: /feedback -> /issues
 router.post('/issues', async (req, res) => {
   const { teacherId, cluster, category, description } = req.body;
   
-  console.log('Issue submission received:', teacherId, cluster, category);
+  console.log('Issue submission received:', { teacherId, cluster, category });
+  
+  if (!teacherId || !cluster || !category || !description) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: teacherId, cluster, category, description'
+    });
+  }
   
   try {
-    // Changed: table('feedback') -> table('issues')
     const { data: issueData, error: issueError } = await supabase
       .from('issues')
       .insert({
@@ -122,7 +195,7 @@ router.post('/issues', async (req, res) => {
     
     if (issueError) throw issueError;
     
-    console.log(`Issue saved with ID: ${issueData.id}...`);
+    console.log(`✅ Issue saved with ID: ${issueData.id}`);
     
     let aiResponse = null;
     let fullAiResponse = null;
@@ -131,7 +204,6 @@ router.post('/issues', async (req, res) => {
       const aiServiceUrl = `${AI_SERVICE_URL}/api/feedback-to-training`;
       console.log('Calling AI Service at:', aiServiceUrl);
       
-      // Send both issue_id (new) and feedback_id (legacy) for backward compatibility
       const aiResult = await fetch(aiServiceUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,7 +212,7 @@ router.post('/issues', async (req, res) => {
           issue_id: issueData.id,
           feedback_id: issueData.id, // backward compatibility
           admin_id: 'system-auto'
-        })
+        }),
       });
       
       if (aiResult.ok) {
@@ -149,9 +221,8 @@ router.post('/issues', async (req, res) => {
         
         fullAiResponse = aiData;
         
-        // Check for issue_deleted or feedback_deleted (backward compat)
         if ((aiData as any).issue_deleted || (aiData as any).feedback_deleted || (aiData as any).skipped_ai_call) {
-          console.log('Training already assigned - issue deleted');
+          console.log('⚠️ Training already assigned - issue deleted');
           
           return res.status(200).json({
             success: true,
@@ -165,23 +236,34 @@ router.post('/issues', async (req, res) => {
         
         aiResponse = {
           suggestion: `Training Assigned: ${(aiData as any).assigned_module}`,
-          inferredGaps: (aiData as any).inferred_gaps,
+          inferredGaps: (aiData as any).inferred_gaps || [],
           priority: 'high'
         };
       }
     } catch (aiError) {
-      console.error('AI Service Unreachable - Skipping:', aiError);
+      console.error('⚠️ AI Service Error (continuing without AI):', aiError);
     }
     
     res.status(201).json({
       success: true,
-      issue: issueData,
+      issue: {
+        id: issueData.id,
+        teacherId: issueData.teacher_id,
+        cluster: issueData.cluster,
+        category: issueData.category,
+        description: issueData.description,
+        status: issueData.status,
+        createdAt: issueData.created_at
+      },
       aiResponse
     });
     
   } catch (error) {
     console.error('Submit issue error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
@@ -230,13 +312,12 @@ router.get('/training/:teacherId', async (req, res) => {
 
     console.log(`Found ${Object.keys(personalizedMap).length} personalized content entries`);
 
-    const trainings = assignments?.map(assignment => ({
+    const trainings = (assignments || []).map(assignment => ({
       id: assignment.id,
       teacherId: assignment.teacher_id,
       moduleId: assignment.module_id,
       assignedBy: assignment.assigned_by,
       assignedReason: assignment.assigned_reason,
-      // Changed: source_feedback_id -> source_issue_id
       sourceIssueId: assignment.source_issue_id,
       status: assignment.status,
       progressPercentage: assignment.progress_percentage || 0,
@@ -256,16 +337,19 @@ router.get('/training/:teacherId', async (req, res) => {
         contentType: assignment.training_modules.content_type,
         videoUrl: assignment.training_modules.video_url,
         articleContent: assignment.training_modules.article_content,
-      } : undefined,
+      } : null,
       personalizedContent: personalizedMap[assignment.module_id] || null,
-    })) || [];
+    }));
 
     console.log(`Sending ${trainings.length} training assignments to frontend`);
     
     res.json({ success: true, trainings });
   } catch (error) {
     console.error('Get training error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
@@ -296,18 +380,20 @@ router.patch('/training/:trainingId/progress', async (req, res) => {
       throw error;
     }
 
-    console.log('Progress updated successfully');
+    console.log('✅ Progress updated successfully');
 
     res.json({ success: true, training: data });
   } catch (error) {
     console.error('Update progress error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
 // ==================== TRAINING FEEDBACK ENDPOINTS ====================
 
-// Submit training feedback (after completing a module)
 router.post('/training-feedback', async (req, res) => {
   const {
     teacherId,
@@ -325,11 +411,10 @@ router.post('/training-feedback', async (req, res) => {
 
   console.log('Training feedback submission received:', { teacherId, assignmentId, rating });
 
-  // Validation
   if (!teacherId || !assignmentId || !moduleId || rating === undefined || wasHelpful === undefined) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required fields: teacherId, assignmentId, moduleId, rating, wasHelpful'
+      error: 'Missing required fields'
     });
   }
 
@@ -341,6 +426,20 @@ router.post('/training-feedback', async (req, res) => {
   }
 
   try {
+    // ✅ Check for duplicate feedback
+    const { data: existing } = await supabase
+      .from('training_feedback')
+      .select('id')
+      .eq('assignment_id', assignmentId)
+      .maybeSingle();
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        error: 'Feedback already submitted for this assignment'
+      });
+    }
+
     const { data: feedbackData, error: feedbackError } = await supabase
       .from('training_feedback')
       .insert({
@@ -366,7 +465,6 @@ router.post('/training-feedback', async (req, res) => {
 
     console.log(`✅ Training feedback saved with ID: ${feedbackData.id}`);
 
-    // Return formatted response
     res.status(201).json({
       success: true,
       feedback: {
@@ -395,7 +493,6 @@ router.post('/training-feedback', async (req, res) => {
   }
 });
 
-// Get all training feedback for a teacher
 router.get('/training-feedback/teacher/:teacherId', async (req, res) => {
   const { teacherId } = req.params;
 
@@ -448,7 +545,6 @@ router.get('/training-feedback/teacher/:teacherId', async (req, res) => {
   }
 });
 
-// Get training feedback for a specific assignment
 router.get('/training-feedback/assignment/:assignmentId', async (req, res) => {
   const { assignmentId } = req.params;
 
@@ -459,15 +555,15 @@ router.get('/training-feedback/assignment/:assignmentId', async (req, res) => {
       .from('training_feedback')
       .select('*')
       .eq('assignment_id', assignmentId)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+    if (error && error.code !== 'PGRST116') {
       console.error('Supabase error:', error);
       throw error;
     }
 
     if (!data) {
-      return res.json({ success: true, feedback: null });
+      return res.json({ success: true, feedback: null, exists: false });
     }
 
     const feedback = {
@@ -486,10 +582,39 @@ router.get('/training-feedback/assignment/:assignmentId', async (req, res) => {
       createdAt: data.created_at
     };
 
-    res.json({ success: true, feedback });
+    res.json({ success: true, feedback, exists: true });
   } catch (error) {
     console.error('Get training feedback by assignment error:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// ✅ CHECK FEEDBACK EXISTS ENDPOINT
+router.get('/training-feedback/check/:assignmentId', async (req, res) => {
+  const { assignmentId } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('training_feedback')
+      .select('*')
+      .eq('assignment_id', assignmentId)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      exists: !!data,
+      feedback: data || null
+    });
+  } catch (error) {
+    console.error('Check feedback error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
   }
 });
 
