@@ -94,7 +94,7 @@ Language: {primary_language} | Infrastructure: {cluster_context.get('infrastruct
 **MODULE:** {base_module.get('title')} ({base_module.get('competency_area')})
 
 ---
-
+THE MOST IMPORTANT RULE IS NOT USE MARKDOWN FORMAT OR TO SPEAK OUT THE SECTION TITLES. MAKE IT POINT WISE
 **CREATE 7 SECTIONS (Plain text, no markdown):**
 
 1. YOUR SITUATION (2 sentences)

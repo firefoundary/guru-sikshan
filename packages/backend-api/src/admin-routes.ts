@@ -199,6 +199,79 @@ router.get('/teachers', async (req, res) => {
   }
 });
 
+// Generate feedback summary for all feedbacks
+router.post('/feedback-summary/all', async (req, res) => {
+  const { feedback_ids } = req.body;
+
+  if (!feedback_ids || feedback_ids.length === 0) {
+    return res.status(400).json({ error: 'feedback_ids required' });
+  }
+
+  try {
+    const aiServiceUrl = `${AI_SERVICE_URL}/api/summarize-all-feedback`;
+    
+    const response = await fetch(aiServiceUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback_ids })
+    });
+
+    if (!response.ok) {
+      throw new Error('AI service request failed');
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Feedback summary error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate summary' 
+    });
+  }
+});
+router.post('/feedback-summary/module', async (req, res) => {
+  const { module_id, feedback_ids } = req.body;
+
+  console.log('Module summary request:', { module_id, feedback_count: feedback_ids?.length });
+
+  if (!module_id || !feedback_ids || feedback_ids.length === 0) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'module_id and feedback_ids required' 
+    });
+  }
+
+  try {
+    const aiServiceUrl = `${AI_SERVICE_URL}/api/summarize-module-feedback`;
+    console.log('Calling AI service:', aiServiceUrl);
+    
+    const response = await fetch(aiServiceUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module_id, feedback_ids })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AI service error:', response.status, errorText);
+      throw new Error(`AI service returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Summary generated successfully');
+    
+    res.json(data);
+  } catch (error) {
+    console.error('Module feedback summary error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate summary',
+      details: error.message
+    });
+  }
+});
+
 router.post('/teachers', async (req, res) => {
   const { name, email, cluster, employeeId, password } = req.body;
 

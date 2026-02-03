@@ -142,6 +142,37 @@ router.get('/issues/teacher/:teacherId', async (req, res) => {
   }
 });
 
+// Feedback summary endpoint - proxies to AI service
+router.get('/feedback-summary/:teacherId', async (req, res) => {
+  const { teacherId } = req.params;
+
+  console.log(`Fetching feedback summary for teacher: ${teacherId}`);
+
+  try {
+    const aiServiceUrl = `${AI_SERVICE_URL}/api/summarize-feedback`;
+    
+    const response = await fetch(aiServiceUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teacher_id: teacherId })
+    });
+
+    if (!response.ok) {
+      throw new Error('AI service request failed');
+    }
+
+    const data = await response.json();
+    
+    res.json(data);
+  } catch (error) {
+    console.error('Feedback summary error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate summary' 
+    });
+  }
+});
+
 router.get('/issues/:id', async (req, res) => {
   const { id } = req.params;
   try {

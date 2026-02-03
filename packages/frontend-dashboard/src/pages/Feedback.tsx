@@ -1,11 +1,25 @@
 import { useState, useMemo, useEffect } from 'react';
-import { MessageSquare, Star, Search, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { MessageSquare, Star, Search, X, ChevronDown, ChevronUp, Loader2, Sparkles } from 'lucide-react';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { toast } from '@/hooks/use-toast';
 import api, { TrainingFeedback } from '@/services/api';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 interface FeedbackProps {
   onLogout: () => void;
+}
+
+interface ModuleSummary {
+  module_id: string;
+  feedback_count: number;
+  summary: string;
+  statistics: {
+    average_rating: number;
+    helpful_count: number;
+    needs_support: number;
+    still_has_issues: number;
+  };
 }
 
 export function FeedbackPage({ onLogout }: FeedbackProps) {
@@ -15,8 +29,10 @@ export function FeedbackPage({ onLogout }: FeedbackProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedModules, setExpandedModules] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [moduleSummaries, setModuleSummaries] = useState<Record<string, ModuleSummary>>({});
+  const [summaryLoading, setSummaryLoading] = useState<Record<string, boolean>>({});
 
-  // Fetch data on mount
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -45,7 +61,51 @@ export function FeedbackPage({ onLogout }: FeedbackProps) {
     fetchData();
   }, []);
 
-  // Toggle module expansion
+  const generateModuleSummary = async (moduleId: string) => {
+    const moduleFeedbacks = getFeedbacksForModule(moduleId);
+    
+    if (moduleFeedbacks.length < 2) {
+      toast({
+        title: 'Not enough feedback',
+        description: 'At least 2 feedbacks are required to generate a summary',
+        variant: 'default'
+      });
+      return;
+    }
+
+    setSummaryLoading(prev => ({ ...prev, [moduleId]: true }));
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/feedback-summary/module`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          module_id: moduleId,
+          feedback_ids: moduleFeedbacks.map(f => f.id)
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to generate summary');
+
+      const data = await response.json();
+      setModuleSummaries(prev => ({ ...prev, [moduleId]: data }));
+      
+      toast({
+        title: 'Summary Generated',
+        description: 'AI summary created successfully'
+      });
+    } catch (error) {
+      console.error('Summary generation error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to generate AI summary',
+        variant: 'destructive'
+      });
+    } finally {
+      setSummaryLoading(prev => ({ ...prev, [moduleId]: false }));
+    }
+  };
+
   const toggleModule = (moduleId: string) => {
     setExpandedModules(prev => {
       if (prev.includes(moduleId)) {
@@ -56,12 +116,10 @@ export function FeedbackPage({ onLogout }: FeedbackProps) {
     });
   };
 
-  // Get feedbacks for a specific module
   const getFeedbacksForModule = (moduleId: string) => {
     return feedbacks.filter(f => f.moduleId === moduleId);
   };
 
-  // Get module stats
   const getModuleStats = (moduleId: string) => {
     const moduleFeedbacks = getFeedbacksForModule(moduleId);
     if (moduleFeedbacks.length === 0) return { count: 0, avgRating: 0 };
@@ -70,7 +128,6 @@ export function FeedbackPage({ onLogout }: FeedbackProps) {
     return { count: moduleFeedbacks.length, avgRating };
   };
 
-  // Filtered modules
   const filteredModules = useMemo(() => {
     if (!searchQuery) return modules;
     return modules.filter(module =>
@@ -108,7 +165,6 @@ export function FeedbackPage({ onLogout }: FeedbackProps) {
       subtitle="Teacher feedback organized by training modules"
       onLogout={onLogout}
     >
-
       {/* Search Bar */}
       <div className="mb-6">
         <div className="relative">
@@ -144,6 +200,8 @@ export function FeedbackPage({ onLogout }: FeedbackProps) {
             const moduleFeedbacks = getFeedbacksForModule(module.id);
             const stats = getModuleStats(module.id);
             const isExpanded = expandedModules.includes(module.id);
+            const hasSummary = moduleSummaries[module.id];
+            const isLoadingSummary = summaryLoading[module.id];
 
             return (
               <div key={module.id} className="dashboard-card p-0 overflow-hidden">
@@ -195,51 +253,160 @@ export function FeedbackPage({ onLogout }: FeedbackProps) {
                         <p className="text-sm text-muted-foreground">No feedback yet for this module</p>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        {moduleFeedbacks.map(feedback => (
-                          <div
-                            key={feedback.id}
-                            className="bg-muted/30 hover:bg-muted/50 p-4 rounded-lg cursor-pointer transition-all"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedFeedback(feedback);
-                            }}
-                          >
-                            <div className="flex items-start justify-between gap-4 mb-2">
-                              <div>
-                                <h3 className="font-medium text-foreground">
-                                  {feedback.teacherName}
-                                </h3>
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(feedback.createdAt).toLocaleDateString()}
+                      <>
+                        {/* AI Summary Section */}
+                        <div className="mb-6 pb-6 border-b border-border">
+                          {!hasSummary ? (
+                            <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <Sparkles className="text-primary" size={20} />
+                                <div>
+                                  <p className="font-medium text-foreground">AI Summary Available</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {moduleFeedbacks.length === 1 
+                                      ? 'Need at least 2 feedbacks to generate summary' 
+                                      : `Generate insights from ${moduleFeedbacks.length} feedbacks`}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  generateModuleSummary(module.id);
+                                }}
+                                disabled={isLoadingSummary || moduleFeedbacks.length < 2}
+                                className={`btn-primary px-4 py-2 flex items-center gap-2 ${
+                                  moduleFeedbacks.length < 2 ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                              >
+                                {isLoadingSummary ? (
+                                  <>
+                                    <Loader2 size={16} className="animate-spin" />
+                                    Generating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles size={16} />
+                                    Generate Summary
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              {/* Summary Header */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Sparkles className="text-primary" size={20} />
+                                  <h3 className="font-semibold text-foreground">AI-Generated Summary</h3>
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setModuleSummaries(prev => {
+                                      const newSummaries = { ...prev };
+                                      delete newSummaries[module.id];
+                                      return newSummaries;
+                                    });
+                                  }}
+                                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                                >
+                                  Hide
+                                </button>
+                              </div>
+
+                              {/* Statistics */}
+                              <div className="grid grid-cols-4 gap-3">
+                                <div className="bg-muted/30 p-3 rounded-lg text-center">
+                                  <p className="text-2xl font-bold text-foreground">
+                                    {hasSummary.statistics.average_rating.toFixed(1)}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">Avg Rating</p>
+                                </div>
+                                <div className="bg-muted/30 p-3 rounded-lg text-center">
+                                  <p className="text-2xl font-bold text-success">
+                                    {hasSummary.statistics.helpful_count}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">Helpful</p>
+                                </div>
+                                {hasSummary.statistics.needs_support > 0 && (
+                                  <div className="bg-warning/10 p-3 rounded-lg text-center">
+                                    <p className="text-2xl font-bold text-warning">
+                                      {hasSummary.statistics.needs_support}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">Need Support</p>
+                                  </div>
+                                )}
+                                {hasSummary.statistics.still_has_issues > 0 && (
+                                  <div className="bg-destructive/10 p-3 rounded-lg text-center">
+                                    <p className="text-2xl font-bold text-destructive">
+                                      {hasSummary.statistics.still_has_issues}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">Has Issues</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* AI Summary Text */}
+                              <div className="bg-primary/5 border-l-4 border-primary p-4 rounded-r-lg">
+                                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                                  {hasSummary.summary}
                                 </p>
                               </div>
-                              <div className="flex items-center gap-1">
-                                {renderStars(feedback.rating)}
-                              </div>
                             </div>
-                            {feedback.comment && (
-                              <p className="text-sm text-foreground line-clamp-2">
-                                {feedback.comment}
-                              </p>
-                            )}
-                            {(feedback.needsAdditionalSupport || feedback.stillHasIssue) && (
-                              <div className="flex gap-2 mt-2">
-                                {feedback.needsAdditionalSupport && (
-                                  <span className="text-xs px-2 py-0.5 rounded bg-warning/20 text-warning">
-                                    Needs Support
-                                  </span>
-                                )}
-                                {feedback.stillHasIssue && (
-                                  <span className="text-xs px-2 py-0.5 rounded bg-destructive/20 text-destructive">
-                                    Has Issue
-                                  </span>
-                                )}
+                          )}
+                        </div>
+
+                        {/* Feedback List */}
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-muted-foreground mb-3">
+                            Individual Feedback ({moduleFeedbacks.length})
+                          </h4>
+                          {moduleFeedbacks.map(feedback => (
+                            <div
+                              key={feedback.id}
+                              className="bg-muted/30 hover:bg-muted/50 p-4 rounded-lg cursor-pointer transition-all"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedFeedback(feedback);
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-4 mb-2">
+                                <div>
+                                  <h3 className="font-medium text-foreground">
+                                    {feedback.teacherName}
+                                  </h3>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(feedback.createdAt).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {renderStars(feedback.rating)}
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                              {feedback.comment && (
+                                <p className="text-sm text-foreground line-clamp-2">
+                                  {feedback.comment}
+                                </p>
+                              )}
+                              {(feedback.needsAdditionalSupport || feedback.stillHasIssue) && (
+                                <div className="flex gap-2 mt-2">
+                                  {feedback.needsAdditionalSupport && (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-warning/20 text-warning">
+                                      Needs Support
+                                    </span>
+                                  )}
+                                  {feedback.stillHasIssue && (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-destructive/20 text-destructive">
+                                      Has Issue
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
