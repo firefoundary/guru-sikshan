@@ -1,126 +1,66 @@
-import { useState, useEffect } from 'react';
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster }                       from "@/components/ui/toaster";
+import { Toaster as Sonner }             from "@/components/ui/sonner";
+import { TooltipProvider }               from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AdminManagement } from '@/pages/AdminManagement';
+
+import { AuthProvider, useAuth }         from '@/contexts/AuthContext';
+import { LoginPage }           from './pages/LoginPage';
 
 // Pages
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Teachers from "./pages/Teachers";
-import Feedback from "./pages/Feedback";
-import Issues from "./pages/Issues";
-import UploadModules from "./pages/UploadModules";
-import NotFound from "./pages/NotFound";
+import Dashboard       from "./pages/Dashboard";
+import Teachers        from "./pages/Teachers";
+import Feedback        from "./pages/Feedback";
+import Issues          from "./pages/Issues";
+import UploadModules   from "./pages/UploadModules";
+import NotFound        from "./pages/NotFound";
+import { AdminManagement } from '@/pages/AdminManagement';
 
 const queryClient = new QueryClient();
 
-// Protected Route Component
-function ProtectedRoute({ children, isAuthenticated }: { children: React.ReactNode; isAuthenticated: boolean }) {
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+function AppRoutes() {
+  const { isAuthenticated, isLoading, logout } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+          <p className="mt-4 text-muted-foreground">Loading…</p>
+        </div>
+      </div>
+    );
   }
-  return <>{children}</>;
-}
 
-const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('isAuthenticated') === 'true';
-  });
-
-  // Check auth state on mount and listen for changes
-  useEffect(() => {
-    const checkAuth = () => {
-      setIsAuthenticated(localStorage.getItem('isAuthenticated') === 'true');
-    };
-    
-    window.addEventListener('storage', checkAuth);
-    return () => window.removeEventListener('storage', checkAuth);
-  }, []);
-
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('userEmail');
-    setIsAuthenticated(false);
-  };
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Public Route */}
-            <Route 
-              path="/login" 
-              element={
-                isAuthenticated 
-                  ? <Navigate to="/" replace /> 
-                  : <Login onLogin={handleLogin} />
-              } 
-            />
-
-            {/* Protected Routes */}
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute isAuthenticated={isAuthenticated}>
-                  <Dashboard onLogout={handleLogout} />
-                </ProtectedRoute>
-              } 
-            />
-            
-            <Route 
-              path="/teachers" 
-              element={
-                <ProtectedRoute isAuthenticated={isAuthenticated}>
-                  <Teachers onLogout={handleLogout} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/issues" 
-              element={
-                <ProtectedRoute isAuthenticated={isAuthenticated}>
-                  <Issues onLogout={handleLogout} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/feedback" 
-              element={
-                <ProtectedRoute isAuthenticated={isAuthenticated}>
-                  <Feedback onLogout={handleLogout} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/modules" 
-              element={
-                <ProtectedRoute isAuthenticated={isAuthenticated}>
-                  <UploadModules onLogout={handleLogout} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admins" 
-              element={
-              <AdminManagement onLogout={handleLogout} />} />
-
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <Routes>
+      <Route path="/"        element={<Dashboard  onLogout={logout} />} />
+      <Route path="/teachers" element={<Teachers  onLogout={logout} />} />
+      <Route path="/issues"   element={<Issues    onLogout={logout} />} />
+      <Route path="/feedback" element={<Feedback  onLogout={logout} />} />
+      <Route path="/modules"  element={<UploadModules />} />
+      <Route path="/admins"   element={<AdminManagement onLogout={logout} />} />
+      <Route path="*"         element={<NotFound />} />
+    </Routes>
   );
-};
+}
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

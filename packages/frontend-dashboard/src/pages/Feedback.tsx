@@ -222,9 +222,6 @@ export function FeedbackPage({ onLogout }: FeedbackProps) {
                           <ChevronDown className="text-muted-foreground flex-shrink-0" size={20} />
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground capitalize">
-                        {module.competencyArea.replace(/_/g, ' ')} • {module.difficultyLevel}
-                      </p>
                     </div>
                     <div className="flex items-center gap-6">
                       <div className="text-center">

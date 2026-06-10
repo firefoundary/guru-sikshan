@@ -61,12 +61,17 @@ export function Dashboard({ onLogout }: DashboardProps) {
   };
 
   // Calculate display stats from the backend stats structure
-  const displayStats = stats ? {
-    totalTeachers: stats.total, // Using total feedback as proxy - would need separate endpoint
-    activeModules: stats.byStatus.resolved + stats.byStatus.inReview,
-    openIssues: stats.byStatus.pending,
-    completionRate: stats.total > 0 ? Math.round((stats.byStatus.resolved / stats.total) * 100) : 0,
-  } : null;
+  const displayStats = stats
+  ? {
+      totalTeachers: stats.total,
+      activeModules: (stats.byStatus?.resolved ?? 0) + (stats.byStatus?.inReview ?? 0),
+      openIssues: stats.byStatus?.pending ?? 0,
+      completionRate:
+        stats.total > 0
+          ? Math.round(((stats.byStatus?.resolved ?? 0) / stats.total) * 100)
+          : 0,
+    }
+  : null;
 
   return (
     <DashboardLayout 
@@ -88,34 +93,34 @@ export function Dashboard({ onLogout }: DashboardProps) {
           ))
         ) : displayStats && (
           <>
-            <StatCard
-              title="Total Feedback"
-              value={stats?.total.toLocaleString() || '0'}
-              icon={Users}
-              iconColor="text-primary"
-              iconBgColor="bg-primary/10"
-            />
-            <StatCard
-              title="Pending Issues"
-              value={displayStats.openIssues}
-              icon={BookOpen}
-              iconColor="text-warning"
-              iconBgColor="bg-warning/10"
-            />
-            <StatCard
-              title="In Review"
-              value={stats?.byStatus.inReview || 0}
-              icon={MessageSquare}
-              iconColor="text-primary"
-              iconBgColor="bg-primary/10"
-            />
-            <StatCard
-              title="Resolved"
-              value={stats?.byStatus.resolved || 0}
-              icon={TrendingUp}
-              iconColor="text-success"
-              iconBgColor="bg-success/10"
-            />
+          <StatCard
+            title="Total Feedback"
+            value={(stats?.total ?? 0).toLocaleString()}
+            icon={Users}
+            iconColor="text-primary"
+            iconBgColor="bg-primary/10"
+          />
+          <StatCard
+            title="Pending Issues"
+            value={(displayStats?.openIssues ?? 0).toLocaleString()}
+            icon={BookOpen}
+            iconColor="text-warning"
+            iconBgColor="bg-warning/10"
+          />
+          <StatCard
+            title="In Review"
+            value={(stats?.byStatus?.inReview ?? 0).toLocaleString()}
+            icon={MessageSquare}
+            iconColor="text-primary"
+            iconBgColor="bg-primary/10"
+          />
+          <StatCard
+            title="Resolved"
+            value={(stats?.byStatus?.resolved ?? 0).toLocaleString()}
+            icon={TrendingUp}
+            iconColor="text-success"
+            iconBgColor="bg-success/10"
+          />
           </>
         )}
       </div>

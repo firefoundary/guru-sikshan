@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { Search, Filter, ChevronUp, ChevronDown, AlertCircle, CheckCircle, Clock, Trash2 } from 'lucide-react';
-import type { Feedback } from '@/services/api';
+import { Issue } from '@/services/api';
 
 interface IssueTableProps {
-  issues: Feedback[];
+  issues: Issue[];
   loading?: boolean;
-  onStatusChange?: (id: string, status: Feedback['status']) => void;
-  onView?: (issue: Feedback) => void;
-  onDelete?: (id: string) => void; // ✅ NEW: Delete handler
+  onStatusChange?: (id: string, status: Issue['status']) => void;
+  onView?: (issue: Issue) => void;
+  onDelete?: (id: string) => void; 
 }
 
 type SortField = 'teacherName' | 'cluster' | 'category' | 'status' | 'createdAt';
@@ -291,7 +291,7 @@ export function IssueTable({ issues, loading, onStatusChange, onView, onDelete }
                         {issue.status !== 'resolved' && onStatusChange && (
                           <select
                             value={issue.status}
-                            onChange={(e) => onStatusChange(issue.id, e.target.value as Feedback['status'])}
+                            onChange={(e) => onStatusChange(issue.id, e.target.value as Issue['status'])}
                             className="text-sm border border-input rounded px-2 py-1 bg-background"
                             aria-label="Change status"
                           >

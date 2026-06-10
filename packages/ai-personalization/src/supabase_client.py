@@ -18,8 +18,12 @@ class SupabaseDB:
         
         self.client: Client = create_client(url, key)
     
+    # ❌ DEPRECATED: get_teacher_by_id - only used by removed feedback_to_training endpoint
     def get_teacher_by_id(self, teacher_id):
-        """Fetch teacher profile from Supabase"""
+        """
+        DEPRECATED: This method is no longer used (teacher-app removed)
+        Fetch teacher profile from Supabase
+        """
         try:
             response = self.client.table('teachers').select('*').eq('id', teacher_id).execute()
             return response.data[0] if response.data else None
@@ -45,9 +49,12 @@ class SupabaseDB:
             print(f"Error loading mappings: {e}")
             return []
     
-    # NEW: renamed from get_teacher_feedback
+    # ❌ DEPRECATED: get_teacher_issues - only used by removed endpoints
     def get_teacher_issues(self, teacher_id):
-        """Fetch all issues from a teacher"""
+        """
+        DEPRECATED: This method is no longer used (teacher-app removed)
+        Fetch all issues from a teacher
+        """
         try:
             response = self.client.table('issues')\
                 .select('*')\
@@ -61,10 +68,12 @@ class SupabaseDB:
     
     # Backward compatibility alias
     def get_teacher_feedback(self, teacher_id):
-        """Legacy method: use get_teacher_issues instead"""
+        """
+        DEPRECATED: Legacy method - use get_teacher_issues instead
+        This method is no longer used (teacher-app removed)
+        """
         return self.get_teacher_issues(teacher_id)
     
-    # NEW: renamed from get_cluster_feedback
     def get_cluster_issues(self, cluster_id):
         """Fetch all issues from a cluster"""
         try:
@@ -83,7 +92,7 @@ class SupabaseDB:
         return self.get_cluster_issues(cluster_id)
     
     def get_base_training_module(self, module_id):
-        """Fetch base training content"""
+        """Fetch base module/resource content for personalization pipeline."""
         try:
             response = self.client.table('training_modules').select('*').eq('id', module_id).execute()
             return response.data[0] if response.data else None
@@ -108,9 +117,12 @@ class SupabaseDB:
             print(f"Error saving personalized training: {e}")
             return None
     
-    # NEW: renamed from get_feedback_by_id
+    # ❌ DEPRECATED: get_issue_by_id - only used by removed feedback_to_training endpoint
     def get_issue_by_id(self, issue_id: str):
-        """Fetch a single issue by ID"""
+        """
+        DEPRECATED: This method is no longer used (teacher-app removed)
+        Fetch a single issue by ID
+        """
         try:
             response = self.client.table('issues')\
                 .select('*')\
@@ -124,7 +136,10 @@ class SupabaseDB:
     
     # Backward compatibility alias
     def get_feedback_by_id(self, feedback_id: str):
-        """Legacy method: use get_issue_by_id instead"""
+        """
+        DEPRECATED: Legacy method - use get_issue_by_id instead
+        This method is no longer used (teacher-app removed)
+        """
         return self.get_issue_by_id(feedback_id)
 
     def initialize_default_mappings(self):
