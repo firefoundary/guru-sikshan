@@ -1,5 +1,10 @@
 # GuruSikshan Monorepo
 
+> 📌 **Note on Repository Evolution & Hackathon Code:**
+> This `main` branch contains the refactored **3-part production monorepo** (Python AI Service, TypeScript API, React/Vite Dashboard) decoupled for ShikshaLokam integration. 
+> 
+> To inspect the original **4-part standalone hackathon build**—which includes the React Native mobile client that won Top 3 at the InvokED 5.0 National Hackathon—switch to the **[`hackathon-v1`](../../tree/hackathon-v1)** branch.
+
 A three-part production system for admin operations, AI personalization, and authenticated teacher/admin workflows. The repo is organized as a monorepo with a Python AI service, a TypeScript backend API, and a React/Vite dashboard frontend.
 
 ## What lives here
